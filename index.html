@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test MIDI – Prof de piano jazz</title>
+<style>
+  :root{--bg:#14161a;--card:#1d2026;--fg:#e8e6e1;--mut:#8b8f98;--acc:#e0a84f;--ok:#5fbf7f;--err:#e06b5f}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);padding:16px;max-width:900px;margin:auto}
+  h1{font-size:1.15rem;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:.85rem;margin-bottom:14px}
+  .card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px}
+  button{background:var(--acc);color:#1a1a1a;border:0;border-radius:10px;padding:12px 18px;font-size:1rem;font-weight:600;width:100%}
+  .status{font-size:.9rem;margin-top:10px;line-height:1.4}
+  .ok{color:var(--ok)} .err{color:var(--err)} .mut{color:var(--mut)}
+  .chord{font-size:2.6rem;font-weight:700;text-align:center;min-height:3.2rem;color:var(--acc);letter-spacing:.02em}
+  .notes{text-align:center;font-size:1.05rem;min-height:1.5rem;color:var(--fg)}
+  .meta{display:flex;justify-content:space-between;font-size:.8rem;color:var(--mut);margin-top:8px}
+  #kb{width:100%;height:90px;display:block}
+  .wk{fill:#f4f1ea;stroke:#555;stroke-width:.4}
+  .bk{fill:#222;stroke:#000;stroke-width:.4}
+  .on{fill:var(--acc)!important}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.75rem;color:var(--mut);max-height:160px;overflow:auto;white-space:pre}
+  .lbl{font-size:.75rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+</style>
+</head>
+<body>
+  <h1>🎹 Test MIDI</h1>
+  <div class="sub">Étape 1 – vérifier la chaîne piano → câble USB → Chrome Android</div>
+
+  <div class="card">
+    <button id="go">Connecter le piano</button>
+    <div class="status mut" id="status">Branche le câble, allume le piano, puis appuie sur le bouton.</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">Accord détecté</div>
+    <div class="chord" id="chord">–</div>
+    <div class="notes" id="notes"></div>
+    <div class="meta"><span id="vel">Vélocité : –</span><span id="ped">Pédale : –</span><span id="cnt">0 note</span></div>
+  </div>
+
+  <div class="card" style="padding:8px">
+    <svg id="kb" viewBox="0 0 520 90" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="card">
+    <div class="lbl">Journal MIDI</div>
+    <div id="log"></div>
+  </div>
+
+<script>
+const NAMES=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const nn=m=>NAMES[m%12]+(Math.floor(m/12)-1);
+const $=id=>document.getElementById(id);
+const held=new Map(); // note -> velocity
+let pedal=false, sustained=new Set(), events=0;
+
+// --- Clavier 88 touches (A0=21 à C8=108) ---
+const svg=$('kb'), keyEls={};
+(function drawKb(){
+  const isBlack=m=>[1,3,6,8,10].includes(m%12);
+  const whites=[]; for(let m=21;m<=108;m++) if(!isBlack(m)) whites.push(m);
+  const W=520/whites.length, ns='http://www.w3.org/2000/svg';
+  let x=0; const wx={};
+  whites.forEach(m=>{const r=document.createElementNS(ns,'rect');
+    r.setAttribute('x',x);r.setAttribute('y',0);r.setAttribute('width',W);r.setAttribute('height',90);
+    r.setAttribute('class','wk');svg.appendChild(r);keyEls[m]=r;wx[m]=x;x+=W;});
+  for(let m=21;m<=108;m++) if(isBlack(m)){const r=document.createElementNS(ns,'rect');
+    r.setAttribute('x',wx[m-1]+W*0.65);r.setAttribute('y',0);r.setAttribute('width',W*0.7);r.setAttribute('height',56);
+    r.setAttribute('class','bk');svg.appendChild(r);keyEls[m]=r;}
+})();
+
+// --- Détection d'accord simple (root position, 5te optionnelle, tensions en sus) ---
+const TPL=[
+ ['maj7',[0,4,7,11]],['7',[0,4,7,10]],['m7',[0,3,7,10]],['m7b5',[0,3,6,10]],['dim7',[0,3,6,9]],
+ ['mMaj7',[0,3,7,11]],['6',[0,4,7,9]],['m6',[0,3,7,9]],
+ ['maj7',[0,4,11]],['7',[0,4,10]],['m7',[0,3,10]],
+ ['',[0,4,7]],['m',[0,3,7]],['dim',[0,3,6]],['aug',[0,4,8]],['sus4',[0,5,7]]
+];
+const TENS={1:'b9',2:'9',3:'#9',5:'11',6:'#11',8:'b13',9:'13'};
+function detect(notes){
+  if(notes.length<2) return notes.length?NAMES[notes[0]%12]:'–';
+  const pcs=[...new Set(notes.map(n=>n%12))], bass=Math.min(...notes)%12;
+  let best=null;
+  for(const r of pcs){
+    const iv=new Set(pcs.map(p=>(p-r+12)%12));
+    TPL.forEach(([q,t],i)=>{
+      if(!t.every(x=>iv.has(x))) return;
+      const extra=[...iv].filter(x=>!t.includes(x));
+      if(extra.some(x=>!TENS[x])) return;
+      const score=t.length*10-extra.length*3-i*0.1+(r===bass?5:0);
+      if(!best||score>best.s) best={s:score,r,q,ext:extra.map(x=>TENS[x])};
+    });
+  }
+  if(!best) return '?';
+  let name=NAMES[best.r]+best.q+(best.ext.length?'('+best.ext.join(',')+')':'');
+  if(best.r!==bass) name+='/'+NAMES[bass];
+  return name;
+}
+
+function render(){
+  const all=[...new Set([...held.keys(),...sustained])].sort((a,b)=>a-b);
+  for(const m in keyEls) keyEls[m].classList.toggle('on',all.includes(+m));
+  $('chord').textContent=detect(all);
+  $('notes').textContent=all.map(nn).join('  ');
+  $('cnt').textContent=all.length+' note'+(all.length>1?'s':'');
+}
+function log(s){const l=$('log');l.textContent=s+'\n'+l.textContent.split('\n').slice(0,60).join('\n');}
+
+function onMsg(e){
+  const [st,d1,d2]=e.data, cmd=st&0xf0;
+  events++;
+  if(cmd===0x90&&d2>0){held.set(d1,d2);sustained.delete(d1);$('vel').textContent='Vélocité : '+d2;log(`ON  ${nn(d1).padEnd(4)} v=${d2}`);}
+  else if(cmd===0x80||(cmd===0x90&&d2===0)){held.delete(d1);if(pedal)sustained.add(d1);log(`OFF ${nn(d1)}`);}
+  else if(cmd===0xb0&&d1===64){pedal=d2>=64;if(!pedal)sustained.clear();$('ped').textContent='Pédale : '+(pedal?'enfoncée':'relâchée');log(`CC64 pédale ${d2}`);}
+  else return;
+  render();
+}
+
+function bindInputs(access){
+  const ins=[...access.inputs.values()];
+  ins.forEach(i=>i.onmidimessage=onMsg);
+  const s=$('status');
+  if(ins.length){s.className='status ok';s.textContent='✅ Connecté : '+ins.map(i=>i.name||'entrée MIDI').join(', ')+'. Joue quelques notes.';}
+  else{s.className='status err';s.textContent='Accès MIDI accordé, mais aucun instrument détecté. Vérifie le câble (adaptateur OTG ?) et que le piano est allumé — la page se met à jour toute seule au branchement.';}
+}
+
+$('go').onclick=async()=>{
+  const s=$('status');
+  if(!navigator.requestMIDIAccess){
+    s.className='status err';
+    s.innerHTML='❌ Web MIDI indisponible ici. Ouvre la page dans <b>Chrome Android</b>. Si c\'est déjà le cas, c\'est probablement le cadre d\'affichage qui bloque : il faudra l\'héberger ailleurs (GitHub Pages).';
+    return;
+  }
+  try{
+    const access=await navigator.requestMIDIAccess({sysex:false});
+    bindInputs(access);
+    access.onstatechange=e=>{log(`état : ${e.port.name} ${e.port.state}`);bindInputs(access);};
+  }catch(err){
+    s.className='status err';
+    s.innerHTML='❌ Accès MIDI refusé ('+(err.name||err)+'). Si tu n\'as pas refusé toi-même la permission, c\'est le cadre d\'affichage qui bloque le MIDI : solution = héberger la page sur GitHub Pages.';
+  }
+};
+</script>
+</body>
+</html>
