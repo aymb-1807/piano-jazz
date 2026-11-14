@@ -167,6 +167,7 @@ tempo: 56
 boucle: oui
 objectif: Main gauche seule, 3ce et 7e de chaque accord sur le 1er temps de l'accord, en conduisant les voix au plus proche (pas de saut > 2 demi-tons).
 critere: notes guides présentes sur 100 % des accords, attaque à ±80 ms du temps
+partition: exemples/notes-guides.musicxml
 
 [II-V]
 Ebmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7
