@@ -181,7 +181,7 @@ tonalité: Gm
 mesure: 4/4
 tempo: 80
 style: medium lent, forme AABC
-note: accords relevés sur la partition (mes. 1 = levée) – mes. 29 à confirmer
+note: accords relevés sur la partition (mes. 1 = levée)
 
 [Levée]
 N.C.                                   // mes. 1 : levée sol-la-si♭, clics seuls
@@ -201,7 +201,7 @@ Cm7 | F7 | Bbmaj7 | Ebmaj7
 [C]
 Ebmaj7                                 // mes. 26 : sol de la basse lié depuis la mes. 25, levée do♯-ré à la mélodie
 Cm | D7b9 | Gm7 Cm9 | Fm7 Bb7          // mes. 27 : do-mi♭-sol-do (pas de la) ; mes. 28 : ré, fa♯, la, do + mi♭ mélodie
-                                       // mes. 29 : 2e accord sans fondamentale mi♭-si♭-ré (pas de bécarre) → Cm9 ; C7 si un bécarre manque
+                                       // mes. 29 : 2e accord sans fondamentale mi♭-si♭-ré, pas de bécarre (vérifié) → Cm9
                                        // mes. 29-30 : voicings sans fondamentale à la main gauche (si♭-ré-fa-la ; la♭-do-ré-sol)
 Ebmaj7 | Am7b5 D7 | Gm                 // mes. 33 : accord final arpégé
 `;
