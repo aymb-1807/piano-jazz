@@ -49,6 +49,7 @@ Ebmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7
 | Plusieurs accords | `Fm7 Bb7` | Les accords se partagent la mesure à parts égales (2 + 2 en 4/4) |
 | Prolongation | `/` (ou `-`) | Prolonge l'accord précédent d'une part : `Fm7 / / Bb7` = 3 + 1 ; `/ Ebmaj7` en début de mesure = l'accord de la mesure précédente tient 2 temps |
 | Répétition | `%` | Recopie la mesure précédente |
+| Pas d'accord | `N.C.` (ou `NC`) | Accompagnement muet, clics du métronome seuls (levée, break) |
 | Commentaire | `// …` | Ignoré (pas `#`, qui sert aux dièses) |
 
 ### Métadonnées utilisées

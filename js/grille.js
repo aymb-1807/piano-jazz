@@ -82,6 +82,10 @@ export function lireGrille(texte, { transposition = 0 } = {}) {
         }
         return;
       }
+      if (/^N\.?C\.?$/i.test(j)) { // pas d'accord : silence de l'accompagnement (levée, break)
+        accords.push({ symbole: 'N.C.', nc: true, intervalles: [], classes: [], classesTensions: [], tensions: [], notesGuides: [], temps: k * unite, duree: unite });
+        return;
+      }
       try {
         const sym = transposition ? transposerSymbole(j, transposition, tonaliteArrivee()) : j;
         accords.push({ ...analyserAccord(sym), temps: k * unite, duree: unite });
@@ -168,29 +172,36 @@ critere: notes guides présentes sur 100 % des accords, attaque à ±80 ms du te
 Ebmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7
 `;
 
-// ⚠ GRILLE PROVISOIRE : version Real Book usuelle (sol mineur), citée de mémoire.
-// Variantes fréquentes : mes. 7-8 et 31-32 (Gm7 C7 / Gm6), mes. 27-28 (Gm7 C7 | Fm7 Bb7).
-export const AUTUMN_LEAVES = `titre: Autumn Leaves
+// Autumn Leaves, arrangement de James Wolff (sol mineur). Accords relevés sur la partition
+// (lecture des basses et des voicings), numérotation identique à la partition : mes. 1 = levée.
+// Points incertains signalés en commentaire.
+export const AUTUMN_LEAVES = `titre: Autumn Leaves (arr. James Wolff)
 type: morceau
 tonalité: Gm
 mesure: 4/4
-tempo: 100
-style: swing medium (forme AABC)
-note: grille provisoire (version Real Book usuelle) – utilise la transposition pour la caler sur ta tonalité
+tempo: 80
+style: medium lent, forme AABC
+note: accords relevés sur la partition (mes. 1 = levée) – 4 mesures à confirmer (21, 26, 28, 29-30)
+
+[Levée]
+N.C.                                   // mes. 1 : levée sol-la-si♭, clics seuls
 
 [A1]
 Cm7 | F7 | Bbmaj7 | Ebmaj7
-Am7b5 | D7 | Gm6 | %
+Am7b5 | D7 | Gm | Gm                   // mes. 9 : levée mélodique vers A2
 
-[A2] = A1
+[A2]
+Cm7 | F7 | Bbmaj7 | Ebmaj7
+Am7b5 | D7 | Gm | Gm
 
 [B]
-Am7b5 | D7 | Gm6 | %
+Am7b5 | D7 | Gm | Gm                   // mes. 21 : basse en silence, Gm déduit du contexte
 Cm7 | F7 | Bbmaj7 | Ebmaj7
 
 [C]
-Am7b5 | D7 | Gm7 Gb7 | Fm7 E7
-Ebmaj7 | Am7b5 D7 | Gm6 | %
+Ebmaj7                                 // mes. 26 : Eb tenu (sol à la basse), levée do♯-ré à la mélodie – à confirmer
+Am7b5 | D7b9 | Gm7 C7 | Fm7 Bb7        // mes. 28 : tensions (♭9, ♭13 ?) ; mes. 29-30 : C7 / Bb7 lus à la basse (Real Book : Gb7 / E7)
+Ebmaj7 | Am7b5 D7 | Gm                 // mes. 33 : accord final arpégé
 `;
 
 export const GRILLES = [

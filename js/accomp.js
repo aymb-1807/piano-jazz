@@ -162,6 +162,7 @@ export class Accompagnement {
       if (r.metro === 'tous' || temps % 2 === 1) this.clic(t, temps === 0 ? 1 : 0.6, temps === 0 && r.metro === 'tous');
       return;
     }
+    if (accordA(this.grille, iMesure, temps)?.nc) { this.clic(t, temps === 0 ? 1 : 0.6, temps === 0); return; }
     this.batterie(t, temps);
     for (const n of this.ligneBasse[iMesure] || []) {
       if (Math.abs(n.temps - temps) < 1e-6) this.noteBasse(t, n.midi, n.duree * this.dureeTemps());
@@ -292,8 +293,10 @@ export function construireBasse(grille, debut, fin, style, boucle) {
   const out = {};
   let prec = CENTRE;
   segs.forEach((s, k) => {
-    const suiv = segs[k + 1] || (boucle ? segs[0] : null);
+    let suiv = segs[k + 1] || (boucle ? segs[0] : null);
+    if (suiv?.nc) suiv = null;
     const notes = (out[s.mesure] ??= []);
+    if (s.nc) return;
     if (s.prolonge && style === 'deux') return; // la note précédente tient
     const racine = s.prolonge ? prec : plusProche(s.basse, prec);
     const quinte = plusProche((s.fondamentale + (s.intervalles.includes(6) && !s.intervalles.includes(7) ? 6 : s.intervalles.includes(8) ? 8 : 7)) % 12, racine);
