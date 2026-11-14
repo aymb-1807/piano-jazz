@@ -63,7 +63,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille</h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-14b</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -172,10 +172,10 @@
 </div>
 
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js';
-import { joli, transposerTonalite } from './js/accords.js';
-import { Accompagnement } from './js/accomp.js';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-14b';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-14b';
+import { Accompagnement } from './js/accomp.js?v=2026-11-14b';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-14b';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -323,6 +323,7 @@ acc.surTemps = e => {
   }
   dc.style.display = 'none';
   afficherAccord(e.mesure, e.temps);
+  placerCurseur(e.mesure, e.temps); // filet de sécurité : au moins une fois par temps
   [...$('temps').children].forEach((el, i) => el.classList.toggle('on', i === e.temps));
   if (derniereCour) derniereCour.classList.remove('cour');
   const el = elMesures[e.mesure];
@@ -332,7 +333,18 @@ acc.surTemps = e => {
     if (e.temps === 0) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 };
-acc.surImage = (mesure, temps) => { if (partitionPrete) vue.placer(mesure, temps, 4); };
+acc.surImage = (mesure, temps) => placerCurseur(mesure, temps);
+let erreurCurseur = false;
+function placerCurseur(mesure, temps) {
+  if (!partitionPrete) return;
+  try { vue.placer(mesure, temps, 4); }
+  catch (err) {
+    if (erreurCurseur) return; // signalée une seule fois
+    erreurCurseur = true;
+    console.error(err);
+    $('partiInfo').insertAdjacentHTML('beforeend', `<br><span class="err">Curseur bloqué : ${echap(err.message || String(err))}</span>`);
+  }
+}
 acc.surFin = () => { majBouton(); finLecture(); };
 
 function finLecture() {

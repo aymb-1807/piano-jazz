@@ -2,7 +2,7 @@
 // Le fichier reste sur l'appareil (IndexedDB) : il n'est jamais envoyé ni versionné (droits d'auteur).
 // Voir docs/adr/0002-affichage-partition.md.
 
-const SCRIPT_OSMD = 'vendor/osmd/opensheetmusicdisplay.min.js';
+const SCRIPT_OSMD = 'vendor/osmd/opensheetmusicdisplay.min.js?v=2.2.1';
 let chargementOSMD = null;
 
 function chargerOSMD() {
