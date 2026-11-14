@@ -52,6 +52,11 @@
   .reglages label{font-size:.8rem;color:var(--mut);display:flex;flex-direction:column;gap:4px;min-width:0}
   .reglages select{width:100%}
   details summary{cursor:pointer;color:var(--mut);font-size:.9rem}
+  /* Partition */
+  #partition{background:#fbf8f1;border-radius:8px;max-height:62vh;overflow:auto;display:none;margin-top:8px}
+  #partition.on{display:block}
+  .fichier{display:inline-block;background:var(--card2);border:1px solid #3a3f49;border-radius:10px;padding:10px 14px;font-size:.95rem;cursor:pointer}
+  #partiInfo{font-size:.8rem;margin-top:6px;line-height:1.4}
   textarea{width:100%;min-height:320px;background:#101215;color:var(--fg);border:1px solid #3a3f49;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.45}
   #erreurs{white-space:pre-wrap;font-size:.85rem;margin-top:6px}
 </style>
@@ -84,6 +89,22 @@
     <div id="decompte"></div>
   </div>
   <button class="prim" id="jouer" style="width:100%;margin-top:10px">▶ Jouer</button>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div class="lbl" style="margin:0">Partition</div>
+    <div class="row" id="zoomBtns" style="display:none">
+      <button id="zMoins" aria-label="Réduire la partition">A−</button>
+      <button id="zPlus" aria-label="Agrandir la partition">A+</button>
+    </div>
+  </div>
+  <div id="partition"></div>
+  <div class="mut" id="partiInfo">Aucune partition. Importe un fichier MusicXML (.musicxml, .mxl) : il reste sur cet appareil.</div>
+  <div class="row" style="margin-top:8px">
+    <label class="fichier">Importer une partition…<input type="file" id="fichierParti" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml" hidden></label>
+    <button id="retirerParti" style="display:none">Retirer</button>
+  </div>
 </div>
 
 <div class="card">
@@ -154,6 +175,7 @@
 import { lireGrille, GRILLES, accordA } from './js/grille.js';
 import { joli, transposerTonalite } from './js/accords.js';
 import { Accompagnement } from './js/accomp.js';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -216,6 +238,7 @@ function charger(id) {
   else reglerTempo(stock.lire('tempo:' + id, m.tempo));
   dessinerGrille();
   afficherAccord(0, 0);
+  chargerPartition(id);
   $('temps').innerHTML = '<i></i>'.repeat(grille.mesures[0].tempsParMesure);
 }
 
@@ -309,6 +332,7 @@ acc.surTemps = e => {
     if (e.temps === 0) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 };
+acc.surImage = (mesure, temps) => { if (partitionPrete) vue.placer(mesure, temps, 4); };
 acc.surFin = () => { majBouton(); finLecture(); };
 
 function finLecture() {
@@ -323,6 +347,7 @@ $('jouer').onclick = async () => {
   if (acc.enCours) { acc.arreter(); finLecture(); majBouton(); return; }
   if (!grille) return;
   const [d, f] = plage || [1, grille.mesures.length];
+  if (partitionPrete) vue.placer(d - 1, 0); // curseur en place dès le décompte
   await acc.demarrer(grille, { debut: d, fin: f, boucle: $('boucle').value === '1' });
   garderEcran();
   majBouton();
@@ -381,6 +406,62 @@ $('nouvelle').onclick = () => {
   stock.ecrire('perso', perso);
   idCourant = id; remplirChoix(); charger(id); $('edition').open = true;
 };
+
+// --- Partition ---------------------------------------------------------------
+const vue = new VuePartition($('partition'));
+vue.zoom = stock.lire('zoomPartition', 0.8);
+let partitionPrete = false, jetonPartition = 0;
+
+async function chargerPartition(id) {
+  const jeton = ++jetonPartition;
+  partitionPrete = false;
+  const locale = await lirePartition(id);
+  const source = locale?.blob || grille?.meta.partition || null;
+  if (jeton !== jetonPartition) return; // une autre grille a été choisie entre-temps
+  $('retirerParti').style.display = locale ? '' : 'none';
+  if (!source) {
+    $('partition').classList.remove('on'); $('zoomBtns').style.display = 'none';
+    $('partiInfo').textContent = 'Aucune partition. Importe un fichier MusicXML (.musicxml, .mxl) : il reste sur cet appareil.';
+    return;
+  }
+  $('partition').classList.add('on'); $('zoomBtns').style.display = '';
+  $('partiInfo').textContent = 'Chargement de la partition…';
+  try {
+    const r = await vue.charger(source);
+    if (jeton !== jetonPartition) return;
+    partitionPrete = true;
+    const nb = grille.mesures.length;
+    const origine = locale ? `« ${locale.nom} » (sur cet appareil)` : 'exemple fourni';
+    $('partiInfo').innerHTML = echap(`Partition : ${origine}, ${r.mesures} mesures.`) +
+      (r.mesures !== nb ? `<br><span class="err">La grille compte ${nb} mesures : le curseur sera décalé. Vérifie la levée et les reprises.</span>` : '') +
+      (grille.meta.transposition ? '<br><span class="err">La grille est transposée, pas la partition.</span>' : '');
+  } catch (e) {
+    partitionPrete = false;
+    $('partition').classList.remove('on'); $('zoomBtns').style.display = 'none';
+    $('partiInfo').innerHTML = `<span class="err">Partition illisible : ${echap(e.message || String(e))}</span>`;
+  }
+}
+
+$('fichierParti').onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try { await enregistrerPartition(idCourant, f); }
+  catch (err) { $('partiInfo').innerHTML = `<span class="err">Impossible d'enregistrer le fichier : ${echap(err.message || String(err))}</span>`; return; }
+  chargerPartition(idCourant);
+};
+$('retirerParti').onclick = async () => {
+  if (!confirm('Retirer la partition de cet appareil ?')) return;
+  await supprimerPartition(idCourant);
+  chargerPartition(idCourant);
+};
+function zoomer(f) {
+  const z = Math.round(Math.min(2, Math.max(0.4, vue.zoom * f)) * 100) / 100;
+  stock.ecrire('zoomPartition', z);
+  vue.regler(z);
+}
+$('zMoins').onclick = () => zoomer(1 / 1.15);
+$('zPlus').onclick = () => zoomer(1.15);
 
 remplirChoix();
 charger(idCourant);

@@ -11,7 +11,7 @@ côté serveur (voir l'ADR dédiée quand elle existera).
 ## Méthode
 
 - **Décisions structurantes** → une ADR dans `docs/adr/NNNN-titre.md` (skill `engineering:architecture`).
-  À prévoir : format interne d'une prise, quantification rythmique, proxy LLM. Déjà écrite : 0001 moteur audio.
+  À prévoir : format interne d'une prise, quantification rythmique, proxy LLM. Déjà écrites : 0001 moteur audio, 0002 affichage de la partition.
 - **Moteur d'analyse (étape 3)** → stratégie de tests avec des prises MIDI de référence : prise juste, note
   manquante, fausse note, décalage rythmique (skill `engineering:testing-strategy`).
 - **Interface** → lisible au pupitre, gros boutons, mode sombre (skill `anthropic-skills:frontend-design`

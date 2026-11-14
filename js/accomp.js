@@ -64,6 +64,7 @@ export class Accompagnement {
     this.ligneBasse = construireBasse(grille, this.debut, this.fin, this.reglages.basse, boucle);
     this.chronologie = [];
     this.file = [];
+    this.dernierEntendu = null;
     // position : décompte puis grille
     this.nbDecompte = this.reglages.decompte * this.tpm;
     this.pos = { decompte: 0, mesure: this.debut, temps: 0 };
@@ -149,7 +150,14 @@ export class Accompagnement {
         const e = this.file.shift();
         e.tPerf = this.versPerf(e.tAudio);
         if (e.finGrille) { this.arreter(); this.surFin?.(); return; }
+        this.dernierEntendu = e;
         this.surTemps?.(e);
+      }
+      // position continue (temps décimal) pour un curseur fluide sur la partition
+      const d = this.dernierEntendu;
+      if (d && !d.decompte && this.surImage) {
+        const frac = Math.min(0.999, Math.max(0, (entendu - d.tAudio) / this.dureeTemps()));
+        this.surImage(d.mesure, d.temps + frac);
       }
       this.raf = requestAnimationFrame(tick);
     };
