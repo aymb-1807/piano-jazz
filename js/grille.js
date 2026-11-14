@@ -1,14 +1,15 @@
 // Format de grille texte, commun aux morceaux et aux exercices.
 // Voir docs/format-grille.md pour la spécification.
 
-import { analyserAccord } from './accords.js';
+import { analyserAccord, transposerSymbole, transposerTonalite } from './accords.js';
 
 /**
  * Lit une grille texte.
+ * @param {{transposition?: number}} opts  demi-tons (+/-), appliqués à tous les accords et à la tonalité
  * @returns {{meta: object, mesures: Array<{numero, section, accords: Array}>, sections: Array}}
  *   mesures[i].accords[j] = { symbole, temps (0-based dans la mesure), duree (en temps), ...analyserAccord }
  */
-export function lireGrille(texte) {
+export function lireGrille(texte, { transposition = 0 } = {}) {
   const meta = {};
   const sections = []; // { nom, debut (index mesure), fin }
   const mesures = [];
@@ -55,6 +56,10 @@ export function lireGrille(texte) {
     });
   });
 
+  function tonaliteArrivee() {
+    return meta.tonalite ? transposerTonalite(meta.tonalite, transposition) : '';
+  }
+
   function ajouterMesure(txt, n) {
     const tempsParMesure = parseInt((meta.mesure || '4/4').split('/')[0], 10) || 4;
     let jetons = txt.split(/\s+/);
@@ -78,7 +83,8 @@ export function lireGrille(texte) {
         return;
       }
       try {
-        accords.push({ ...analyserAccord(j), temps: k * unite, duree: unite });
+        const sym = transposition ? transposerSymbole(j, transposition, tonaliteArrivee()) : j;
+        accords.push({ ...analyserAccord(sym), temps: k * unite, duree: unite });
       } catch (e) {
         erreurs.push(`ligne ${n} : ${e.message}`);
       }
@@ -94,6 +100,9 @@ export function lireGrille(texte) {
     throw err;
   }
 
+  meta.tonaliteOrigine = meta.tonalite;
+  if (transposition && meta.tonalite) meta.tonalite = transposerTonalite(meta.tonalite, transposition);
+  meta.transposition = transposition;
   meta.titre ??= 'Sans titre';
   meta.type ??= 'morceau';
   meta.tempo = parseInt(meta.tempo, 10) || 60;
@@ -159,7 +168,33 @@ critere: notes guides présentes sur 100 % des accords, attaque à ±80 ms du te
 Ebmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7
 `;
 
+// ⚠ GRILLE PROVISOIRE : version Real Book usuelle (sol mineur), citée de mémoire.
+// Variantes fréquentes : mes. 7-8 et 31-32 (Gm7 C7 / Gm6), mes. 27-28 (Gm7 C7 | Fm7 Bb7).
+export const AUTUMN_LEAVES = `titre: Autumn Leaves
+type: morceau
+tonalité: Gm
+mesure: 4/4
+tempo: 100
+style: swing medium (forme AABC)
+note: grille provisoire (version Real Book usuelle) – utilise la transposition pour la caler sur ta tonalité
+
+[A1]
+Cm7 | F7 | Bbmaj7 | Ebmaj7
+Am7b5 | D7 | Gm6 | %
+
+[A2] = A1
+
+[B]
+Am7b5 | D7 | Gm6 | %
+Cm7 | F7 | Bbmaj7 | Ebmaj7
+
+[C]
+Am7b5 | D7 | Gm7 Gb7 | Fm7 E7
+Ebmaj7 | Am7b5 D7 | Gm6 | %
+`;
+
 export const GRILLES = [
   { id: 'misty', texte: MISTY },
+  { id: 'autumn-leaves', texte: AUTUMN_LEAVES },
   { id: 'exercice-exemple', texte: EXERCICE_EXEMPLE },
 ];

@@ -305,7 +305,12 @@ export function construireBasse(grille, debut, fin, style, boucle) {
 
     if (style === 'walking') {
       const n = Math.round(s.duree);
-      const choix = n >= 4 ? [racine, tierce, quinte, approche]
+      // 3e temps : note de l'accord la plus proche de l'approche, sans la répéter
+      const septieme = s.intervalles.find(i => i >= 9) != null ? plusProche((s.fondamentale + s.intervalles.find(i => i >= 9)) % 12, racine) : null;
+      const cands = [quinte, quinte + 12, quinte - 12, tierce, tierce + 12, tierce - 12, septieme, racine + 12, racine - 12]
+        .filter(m => m != null && m >= BAS && m <= HAUT && m !== approche && m !== tierce && m !== racine);
+      const t3 = cands.sort((a, b) => Math.abs(a - approche) - Math.abs(b - approche))[0] ?? quinte;
+      const choix = n >= 4 ? [racine, tierce, t3, approche]
         : n === 3 ? [racine, quinte, approche]
         : n === 2 ? [racine, suiv && suiv.basse !== s.basse ? approche : quinte]
         : [racine];

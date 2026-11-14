@@ -71,3 +71,9 @@ Fondamentale `A`–`G` avec `b`/`#` (ou ♭/♯), puis :
 `maj7` `ma7` `M7` `Δ` · `6` `69` · `m` `m7` `m6` `m9` `m11` `m(maj7)` (`-` accepté pour mineur) · `7` `9` `13` · `7sus4` `sus4` · `m7b5` `ø` · `dim` `dim7` `°7` · `aug` `+` · tensions `b9 9 #9 11 #11 b13 13`, `b5` `#5`, `alt` · basse : `Eb/G`.
 
 Pour chaque accord, le lecteur fournit : fondamentale, basse, qualité, notes de l'accord, tensions, **notes guides** (3ce et 7e) et position dans la mesure (temps de début, durée). L'analyse de l'étape 3 s'appuiera dessus.
+
+## Transposition
+
+La grille est écrite dans une tonalité ; la page propose une transposition de −6 à +6 demi-tons, appliquée à la lecture
+(`lireGrille(texte, { transposition: n })`). Le texte d'origine n'est pas modifié. L'orthographe (♭ ou ♯) suit la tonalité
+d'arrivée, d'où l'intérêt de renseigner `tonalité:` (ex. `Gm`, `Eb`).

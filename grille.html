@@ -65,6 +65,7 @@
 <div class="card">
   <div class="row">
     <select id="choix" class="grow" aria-label="Grille"></select>
+    <select id="transpo" aria-label="Transposition" title="Transposition"></select>
   </div>
   <div class="mut" id="infos" style="font-size:.85rem;margin-top:6px"></div>
   <div id="objectif"></div>
@@ -151,7 +152,7 @@
 
 <script type="module">
 import { lireGrille, GRILLES, accordA } from './js/grille.js';
-import { joli } from './js/accords.js';
+import { joli, transposerTonalite } from './js/accords.js';
 import { Accompagnement } from './js/accomp.js';
 
 const $ = id => document.getElementById(id);
@@ -199,11 +200,14 @@ function charger(id) {
   const texte = texteDe(id);
   $('texte').value = texte;
   $('erreurs').textContent = '';
-  try { grille = lireGrille(texte); }
+  const transpo = stock.lire('transpo:' + id, 0);
+  try { grille = lireGrille(texte, { transposition: transpo }); }
   catch (e) { $('erreurs').textContent = e.message; $('edition').open = true; return; }
   plage = null; selDebut = null;
   const m = grille.meta;
-  $('infos').textContent = [m.type === 'exercice' ? 'Exercice' : 'Morceau', m.tonalite && 'en ' + m.tonalite, m.mesure || '4/4',
+  remplirTranspo(m.tonaliteOrigine, transpo);
+  const ton = m.tonalite && ('en ' + m.tonalite + (transpo ? ` (transposé ${transpo > 0 ? '+' : ''}${transpo}, original ${m.tonaliteOrigine})` : ''));
+  $('infos').textContent = [m.type === 'exercice' ? 'Exercice' : 'Morceau', ton, m.mesure || '4/4',
     grille.mesures.length + ' mesures', m.style, m.source].filter(Boolean).join(' · ') + (m.note ? ' — ' + m.note : '');
   const obj = $('objectif');
   obj.style.display = m.objectif ? 'block' : 'none';
@@ -214,6 +218,20 @@ function charger(id) {
   afficherAccord(0, 0);
   $('temps').innerHTML = '<i></i>'.repeat(grille.mesures[0].tempsParMesure);
 }
+
+function remplirTranspo(tonalite, val) {
+  const sel = $('transpo');
+  sel.innerHTML = '';
+  for (let n = -6; n <= 6; n++) {
+    const o = document.createElement('option');
+    o.value = n;
+    const signe = n > 0 ? '+' + n : n === 0 ? '±0' : String(n);
+    o.textContent = tonalite ? `${transposerTonalite(tonalite, n)} (${signe})` : signe;
+    sel.appendChild(o);
+  }
+  sel.value = val;
+}
+$('transpo').onchange = e => { stock.ecrire('transpo:' + idCourant, +e.target.value); charger(idCourant); };
 
 function echap(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 

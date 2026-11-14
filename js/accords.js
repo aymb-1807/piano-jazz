@@ -106,3 +106,41 @@ export function joli(symbole) {
     .replace(/m7b5/, 'ø7')
     .replace(/b(\d)/g, '♭$1').replace(/#(\d)/g, '♯$1');
 }
+
+// --- Transposition ----------------------------------------------------------
+const NOMS_DIESES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+// Tonalités majeures (classe de hauteur de la tonique) qui s'écrivent avec des dièses
+const MAJ_DIESES = new Set([7, 2, 9, 4, 11, 6]); // G D A E B F#
+
+function pc(lettre, alt) {
+  return (BASE[lettre] + (alt === 'b' || alt === '♭' ? -1 : alt ? 1 : 0) + 12) % 12;
+}
+
+/** Analyse une tonalité « Eb », « Gm », « F# mineur »… → { tonique, mineur } ou null. */
+export function lireTonalite(t) {
+  const m = /^\s*([A-G])([b#♭♯]?)\s*(m|mi|min|mineur|-)?/i.exec(t || '');
+  if (!m) return null;
+  return { tonique: pc(m[1].toUpperCase(), m[2]), mineur: !!m[3] };
+}
+
+/** Nom d'une tonalité transposée de n demi-tons. */
+export function transposerTonalite(t, n) {
+  const k = lireTonalite(t);
+  if (!k) return t;
+  const ton = (k.tonique + n + 120) % 12;
+  const relMaj = k.mineur ? (ton + 3) % 12 : ton;
+  const noms = MAJ_DIESES.has(relMaj) ? NOMS_DIESES : NOMS;
+  return noms[ton] + (k.mineur ? 'm' : '');
+}
+
+/** Transpose un symbole d'accord de n demi-tons ; orthographe selon la tonalité d'arrivée. */
+export function transposerSymbole(sym, n, tonaliteArrivee) {
+  if (!n) return sym;
+  const k = lireTonalite(tonaliteArrivee);
+  const relMaj = k ? (k.mineur ? (k.tonique + 3) % 12 : k.tonique) : 0;
+  const noms = k && MAJ_DIESES.has(relMaj) ? NOMS_DIESES : NOMS;
+  const tr = (l, a) => noms[(pc(l, a) + n + 120) % 12];
+  return sym
+    .replace(/^([A-G])([b#♭♯]?)/, (_, l, a) => tr(l, a))
+    .replace(/\/([A-G])([b#♭♯]?)$/, (_, l, a) => '/' + tr(l, a));
+}
