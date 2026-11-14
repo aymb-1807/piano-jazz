@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14161a">
+<title>Grille – Prof de piano jazz</title>
+<style>
+  :root{--bg:#14161a;--card:#1d2026;--card2:#262a32;--fg:#e8e6e1;--mut:#8b8f98;--acc:#e0a84f;--ok:#5fbf7f;--err:#e06b5f;--sel:#3a4a63}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);padding:16px;max-width:900px;margin:auto}
+  a{color:var(--acc)}
+  header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px}
+  h1{font-size:1.15rem;margin:0}
+  .mut{color:var(--mut)} .err{color:var(--err)}
+  .card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:12px}
+  .lbl{font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  select,input[type=number]{background:var(--card2);color:var(--fg);border:1px solid #3a3f49;border-radius:8px;padding:8px;font-size:.95rem}
+  button{background:var(--card2);color:var(--fg);border:1px solid #3a3f49;border-radius:10px;padding:10px 14px;font-size:.95rem}
+  button.prim{background:var(--acc);color:#1a1a1a;border:0;font-weight:700;font-size:1.1rem;padding:14px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .grow{flex:1}
+  #objectif{border-left:3px solid var(--acc);padding:8px 10px;background:var(--card2);border-radius:6px;font-size:.92rem;line-height:1.4;display:none;margin-top:8px}
+  /* Affichage en cours */
+  #ecran{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;position:relative;min-height:96px}
+  #accord{font-size:2.8rem;font-weight:700;color:var(--acc);line-height:1.1}
+  #suivant{font-size:1rem;color:var(--mut)}
+  #position{font-size:.9rem;color:var(--mut);text-align:right}
+  #temps{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
+  #temps i{width:14px;height:14px;border-radius:50%;background:var(--card2);display:block}
+  #temps i.on{background:var(--acc)}
+  #decompte{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:4rem;font-weight:800;color:var(--acc);background:var(--card);border-radius:12px}
+  /* Grille */
+  #grille .sec{font-size:.75rem;color:var(--mut);margin:10px 0 4px;font-weight:600}
+  #grille .sec:first-child{margin-top:0}
+  .ligne{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+  .mes{background:var(--card2);border-radius:6px;min-height:52px;padding:4px 6px;position:relative;display:flex;align-items:center;gap:4px;cursor:pointer;border:2px solid transparent}
+  .mes .num{position:absolute;top:2px;left:5px;font-size:.6rem;color:var(--mut)}
+  .mes .ch{flex:1;font-size:1rem;font-weight:600;text-align:center;padding-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mes .ch.cour{color:var(--acc)}
+  .mes.plage{background:var(--sel)}
+  .mes.hors{opacity:.45}
+  .mes.cour{border-color:var(--acc)}
+  .mes .ch{min-width:0}
+  .mes.multi{padding:4px 3px;gap:2px}
+  .mes.multi .ch{font-size:.85rem;letter-spacing:-.02em}
+  @media (max-width:420px){.mes .ch{font-size:.9rem}.mes.multi .ch{font-size:.78rem}}
+  /* Tempo */
+  #tempoVal{font-size:1.6rem;font-weight:700;min-width:3.2ch;text-align:center}
+  input[type=range]{width:100%;accent-color:var(--acc)}
+  .reglages{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .reglages label{font-size:.8rem;color:var(--mut);display:flex;flex-direction:column;gap:4px;min-width:0}
+  .reglages select{width:100%}
+  details summary{cursor:pointer;color:var(--mut);font-size:.9rem}
+  textarea{width:100%;min-height:320px;background:#101215;color:var(--fg);border:1px solid #3a3f49;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.45}
+  #erreurs{white-space:pre-wrap;font-size:.85rem;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎹 Grille</h1>
+  <a href="index.html">Test MIDI</a>
+</header>
+
+<div class="card">
+  <div class="row">
+    <select id="choix" class="grow" aria-label="Grille"></select>
+  </div>
+  <div class="mut" id="infos" style="font-size:.85rem;margin-top:6px"></div>
+  <div id="objectif"></div>
+</div>
+
+<div class="card">
+  <div id="ecran">
+    <div>
+      <div id="accord">–</div>
+      <div id="suivant"></div>
+    </div>
+    <div>
+      <div id="position">mes. –</div>
+      <div id="temps"></div>
+    </div>
+    <div id="decompte"></div>
+  </div>
+  <button class="prim" id="jouer" style="width:100%;margin-top:10px">▶ Jouer</button>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <div class="lbl" style="margin:0">Grille</div>
+    <div class="mut" style="font-size:.78rem" id="plageTxt"></div>
+  </div>
+  <div id="grille" style="margin-top:8px"></div>
+  <div class="row" style="margin-top:8px">
+    <span class="mut" style="font-size:.78rem">Touche une mesure pour le début, une 2ᵉ pour la fin.</span>
+    <span class="grow"></span>
+    <button id="toutes">Toute la grille</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="lbl">Tempo</div>
+  <div class="row">
+    <button id="moins">−5</button>
+    <input type="range" id="tempo" min="40" max="160" step="1" class="grow" aria-label="Tempo">
+    <button id="plus">+5</button>
+    <span id="tempoVal">60</span><span class="mut">BPM</span>
+  </div>
+</div>
+
+<div class="card reglages">
+  <label>Accompagnement
+    <select id="mode"><option value="accomp">Basse + balais</option><option value="metro">Métronome seul</option></select>
+  </label>
+  <label>Basse
+    <select id="basse"><option value="deux">2 temps (ballade)</option><option value="walking">Walking</option></select>
+  </label>
+  <label>Métronome
+    <select id="metro"><option value="tous">Tous les temps</option><option value="24">Temps 2 et 4</option></select>
+  </label>
+  <label>Décompte
+    <select id="decompteSel"><option value="0">Aucun</option><option value="1">1 mesure</option><option value="2">2 mesures (1 – 2 – 1 2 3 4)</option></select>
+  </label>
+  <label>Boucle
+    <select id="boucle"><option value="0">Non</option><option value="1">Oui</option></select>
+  </label>
+  <span></span>
+  <label>Basse <input type="range" id="volBasse" min="0" max="1.2" step="0.05"></label>
+  <label>Batterie <input type="range" id="volBatterie" min="0" max="1.2" step="0.05"></label>
+  <label>Métronome / décompte <input type="range" id="volMetro" min="0" max="1.2" step="0.05"></label>
+</div>
+
+<div class="card">
+  <details id="edition">
+    <summary>Modifier la grille (texte)</summary>
+    <p class="mut" style="font-size:.82rem;line-height:1.4">
+      Une mesure entre deux <code>|</code>. Plusieurs accords dans une mesure se partagent les temps également
+      (<code>Fm7 Bb7</code> = 2 + 2) ; <code>/</code> prolonge l'accord d'un temps (<code>Fm7 / / Bb7</code> = 3 + 1) ;
+      <code>%</code> répète la mesure ; <code>[A3] = A1</code> recopie une section ; <code>//</code> commentaire.
+      Format complet : <a href="https://github.com/aymb-1807/piano-jazz/blob/main/docs/format-grille.md" target="_blank" rel="noopener">docs/format-grille.md</a>.
+    </p>
+    <textarea id="texte" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="prim grow" id="appliquer" style="font-size:1rem;padding:10px">Appliquer</button>
+      <button id="reinit">Grille d'origine</button>
+      <button id="nouvelle">Nouvelle grille</button>
+    </div>
+    <div id="erreurs" class="err"></div>
+  </details>
+</div>
+
+<script type="module">
+import { lireGrille, GRILLES, accordA } from './js/grille.js';
+import { joli } from './js/accords.js';
+import { Accompagnement } from './js/accomp.js';
+
+const $ = id => document.getElementById(id);
+const stock = {
+  lire(k, d) { try { const v = localStorage.getItem('pj:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  ecrire(k, v) { try { localStorage.setItem('pj:' + k, JSON.stringify(v)); } catch {} },
+  suppr(k) { try { localStorage.removeItem('pj:' + k); } catch {} },
+};
+
+const acc = new Accompagnement();
+Object.assign(acc.reglages, stock.lire('reglages', {}));
+
+// --- Grilles disponibles : fournies + personnelles -------------------------
+function listeGrilles() {
+  const perso = stock.lire('perso', []); // [{id, texte}]
+  return [...GRILLES.map(g => ({ ...g, fournie: true })), ...perso];
+}
+function texteDe(id) {
+  const g = listeGrilles().find(g => g.id === id);
+  return stock.lire('texte:' + id, null) ?? g?.texte ?? GRILLES[0].texte;
+}
+
+let idCourant = stock.lire('grilleCourante', 'misty');
+let grille = null;
+let plage = null; // [debut, fin] 1-based, ou null = tout
+let selDebut = null;
+
+function remplirChoix() {
+  const sel = $('choix');
+  sel.innerHTML = '';
+  for (const g of listeGrilles()) {
+    let titre = g.id;
+    try { titre = lireGrille(texteDe(g.id)).meta.titre; } catch {}
+    const o = document.createElement('option');
+    o.value = g.id; o.textContent = titre + (stock.lire('texte:' + g.id, null) && g.fournie ? ' (modifiée)' : '');
+    sel.appendChild(o);
+  }
+  if (!listeGrilles().some(g => g.id === idCourant)) idCourant = 'misty';
+  sel.value = idCourant;
+}
+
+function charger(id) {
+  acc.arreter(); majBouton();
+  idCourant = id; stock.ecrire('grilleCourante', id);
+  const texte = texteDe(id);
+  $('texte').value = texte;
+  $('erreurs').textContent = '';
+  try { grille = lireGrille(texte); }
+  catch (e) { $('erreurs').textContent = e.message; $('edition').open = true; return; }
+  plage = null; selDebut = null;
+  const m = grille.meta;
+  $('infos').textContent = [m.type === 'exercice' ? 'Exercice' : 'Morceau', m.tonalite && 'en ' + m.tonalite, m.mesure || '4/4',
+    grille.mesures.length + ' mesures', m.style, m.source].filter(Boolean).join(' · ') + (m.note ? ' — ' + m.note : '');
+  const obj = $('objectif');
+  obj.style.display = m.objectif ? 'block' : 'none';
+  obj.innerHTML = m.objectif ? '<b>Objectif :</b> ' + echap(m.objectif) + (m.critere ? '<br><span class="mut">Critère : ' + echap(m.critere) + '</span>' : '') : '';
+  if (m.type === 'exercice') { reglerTempo(m.tempo); $('boucle').value = m.boucle ? '1' : '0'; }
+  else reglerTempo(stock.lire('tempo:' + id, m.tempo));
+  dessinerGrille();
+  afficherAccord(0, 0);
+  $('temps').innerHTML = '<i></i>'.repeat(grille.mesures[0].tempsParMesure);
+}
+
+function echap(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// --- Dessin de la grille ---------------------------------------------------
+let elMesures = [];
+function dessinerGrille() {
+  const g = $('grille');
+  g.innerHTML = '';
+  elMesures = [];
+  for (const s of grille.sections) {
+    if (s.fin === s.debut) continue;
+    if (s.nom) { const t = document.createElement('div'); t.className = 'sec'; t.textContent = s.nom; g.appendChild(t); }
+    let ligne;
+    for (let i = s.debut; i < s.fin; i++) {
+      if ((i - s.debut) % 4 === 0) { ligne = document.createElement('div'); ligne.className = 'ligne'; g.appendChild(ligne); }
+      const m = grille.mesures[i];
+      const el = document.createElement('div');
+      el.className = 'mes' + (m.accords.length > 1 ? ' multi' : '');
+      el.innerHTML = `<span class="num">${m.numero}</span>` +
+        m.accords.map((a, k) => `<span class="ch" data-k="${k}" style="flex:${a.duree}">${a.prolonge ? '/' : echap(joli(a.symbole))}</span>`).join('');
+      el.onclick = () => choisirMesure(m.numero);
+      ligne.appendChild(el);
+      elMesures[i] = el;
+    }
+  }
+  majPlage();
+}
+
+function choisirMesure(n) {
+  if (acc.enCours) return;
+  if (selDebut == null || n < selDebut || (plage && plage[0] !== plage[1])) { selDebut = n; plage = [n, n]; }
+  else { plage = [selDebut, n]; selDebut = null; }
+  majPlage();
+}
+function majPlage() {
+  const [d, f] = plage || [1, grille.mesures.length];
+  elMesures.forEach((el, i) => {
+    if (!el) return;
+    el.classList.toggle('plage', !!plage && i + 1 >= d && i + 1 <= f);
+    el.classList.toggle('hors', !!plage && (i + 1 < d || i + 1 > f));
+  });
+  $('plageTxt').textContent = plage ? (d === f ? `mesure ${d}` : `mesures ${d} à ${f}`) : 'grille entière';
+}
+$('toutes').onclick = () => { plage = null; selDebut = null; majPlage(); };
+
+// --- Affichage pendant la lecture -----------------------------------------
+let derniereCour = null;
+function afficherAccord(iMesure, temps) {
+  const a = accordA(grille, iMesure, temps);
+  $('accord').textContent = a ? joli(a.symbole) : '–';
+  // accord suivant (différent)
+  let suiv = null;
+  for (let i = iMesure, t = temps + 1; i < grille.mesures.length && !suiv; i++, t = 0) {
+    for (const b of grille.mesures[i].accords) if (b.temps >= t && !b.prolonge && b.symbole !== a?.symbole) { suiv = b; break; }
+  }
+  $('suivant').textContent = suiv ? 'puis ' + joli(suiv.symbole) : '';
+  $('position').textContent = `mes. ${iMesure + 1} · ${grille.mesures[iMesure].section || ''}`;
+}
+
+acc.surTemps = e => {
+  const dc = $('decompte');
+  if (e.decompte) {
+    dc.style.display = 'flex';
+    if (e.libelle) dc.textContent = e.libelle;
+    return;
+  }
+  dc.style.display = 'none';
+  afficherAccord(e.mesure, e.temps);
+  [...$('temps').children].forEach((el, i) => el.classList.toggle('on', i === e.temps));
+  if (derniereCour) derniereCour.classList.remove('cour');
+  const el = elMesures[e.mesure];
+  if (el) {
+    el.classList.add('cour'); derniereCour = el;
+    el.querySelectorAll('.ch').forEach(c => c.classList.toggle('cour', +c.dataset.k === grille.mesures[e.mesure].accords.indexOf(accordA(grille, e.mesure, e.temps))));
+    if (e.temps === 0) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+};
+acc.surFin = () => { majBouton(); finLecture(); };
+
+function finLecture() {
+  $('decompte').style.display = 'none';
+  if (derniereCour) derniereCour.classList.remove('cour');
+  document.querySelectorAll('.ch.cour').forEach(c => c.classList.remove('cour'));
+  libererEcran();
+}
+
+// --- Lecture ---------------------------------------------------------------
+$('jouer').onclick = async () => {
+  if (acc.enCours) { acc.arreter(); finLecture(); majBouton(); return; }
+  if (!grille) return;
+  const [d, f] = plage || [1, grille.mesures.length];
+  await acc.demarrer(grille, { debut: d, fin: f, boucle: $('boucle').value === '1' });
+  garderEcran();
+  majBouton();
+};
+function majBouton() { $('jouer').textContent = acc.enCours ? '■ Arrêter' : '▶ Jouer'; }
+
+// Écran allumé pendant la lecture
+let verrou = null;
+async function garderEcran() { try { verrou = await navigator.wakeLock?.request('screen'); } catch {} }
+function libererEcran() { try { verrou?.release(); } catch {} verrou = null; }
+
+// --- Réglages --------------------------------------------------------------
+function reglerTempo(v) {
+  v = Math.max(40, Math.min(160, Math.round(v)));
+  $('tempo').value = v; $('tempoVal').textContent = v;
+  acc.regler('tempo', v);
+  if (grille?.meta.type !== 'exercice') stock.ecrire('tempo:' + idCourant, v);
+}
+$('tempo').oninput = e => reglerTempo(+e.target.value);
+$('moins').onclick = () => reglerTempo(acc.reglages.tempo - 5);
+$('plus').onclick = () => reglerTempo(acc.reglages.tempo + 5);
+
+const liaisons = { mode: 'mode', basse: 'basse', metro: 'metro', decompteSel: 'decompte', volBasse: 'volBasse', volBatterie: 'volBatterie', volMetro: 'volMetro' };
+for (const [id, cle] of Object.entries(liaisons)) {
+  const el = $(id);
+  el.value = acc.reglages[cle];
+  el.oninput = () => {
+    const v = el.type === 'range' || cle === 'decompte' ? +el.value : el.value;
+    acc.regler(cle, v);
+    const { tempo, ...r } = acc.reglages; stock.ecrire('reglages', r);
+    if (cle === 'basse' && acc.enCours) $('jouer').click(), $('jouer').click(); // relance avec la nouvelle ligne
+  };
+}
+
+// --- Édition ---------------------------------------------------------------
+$('choix').onchange = e => charger(e.target.value);
+$('appliquer').onclick = () => {
+  const texte = $('texte').value;
+  try { lireGrille(texte); } catch (e) { $('erreurs').textContent = e.message; return; }
+  stock.ecrire('texte:' + idCourant, texte);
+  const perso = stock.lire('perso', []);
+  const p = perso.find(g => g.id === idCourant);
+  if (p) { p.texte = texte; stock.ecrire('perso', perso); stock.suppr('texte:' + idCourant); }
+  remplirChoix(); charger(idCourant);
+  $('erreurs').innerHTML = '<span style="color:var(--ok)">Grille enregistrée sur cet appareil.</span>';
+};
+$('reinit').onclick = () => {
+  if (!GRILLES.some(g => g.id === idCourant)) { $('erreurs').textContent = 'Grille personnelle : pas de version d\'origine.'; return; }
+  if (!confirm('Revenir à la grille d\'origine ? Tes modifications seront perdues.')) return;
+  stock.suppr('texte:' + idCourant); remplirChoix(); charger(idCourant);
+};
+$('nouvelle').onclick = () => {
+  const id = 'perso-' + Date.now().toString(36);
+  const perso = stock.lire('perso', []);
+  perso.push({ id, texte: `titre: Nouvel exercice\ntype: exercice\ntonalité: C\nmesure: 4/4\ntempo: 60\nboucle: oui\nobjectif: …\n\n[A]\nDm7 | G7 | Cmaj7 | %\n` });
+  stock.ecrire('perso', perso);
+  idCourant = id; remplirChoix(); charger(id); $('edition').open = true;
+};
+
+remplirChoix();
+charger(idCourant);
+</script>
+</body>
+</html>
