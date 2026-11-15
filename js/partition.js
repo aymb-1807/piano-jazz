@@ -61,6 +61,43 @@ export function supprimerPartition(idGrille) {
   return transaction('readwrite', st => st.delete(idGrille));
 }
 
+// --- Réparation d'un MusicXML « emballé » ------------------------------------------
+// Certains outils (tableur, export de données) enveloppent chaque ligne du fichier dans
+// <root><row><colonne>…texte échappé…</colonne></row>…</root>. On reconstitue l'original.
+
+const ENTITES = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" };
+function desechapper(t) {
+  return t.replace(/&(#x[0-9a-f]+|#\d+|lt|gt|amp|quot|apos);/gi, (m, e) =>
+    e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENTITES[e.toLowerCase()]);
+}
+
+/** @returns {string|null} le MusicXML reconstitué, ou null si le texte n'est pas emballé. */
+export function deballerMusicXML(texte) {
+  if (!/<root>\s*<row>/.test(texte.slice(0, 2000)) || !/score-(partwise|timewise)/.test(texte.slice(0, 5000))) return null;
+  const lignes = [];
+  const re = /<row>([\s\S]*?)<\/row>/g;
+  let m;
+  while ((m = re.exec(texte))) {
+    const cellules = [...m[1].matchAll(/<([A-Za-z_][\w.-]*)>([\s\S]*?)<\/\1>/g)].map(c => desechapper(c[2]));
+    lignes.push(cellules.join(''));
+  }
+  if (!lignes.length) return null;
+  const corps = lignes.join('\n');
+  return (corps.startsWith('<?xml') ? '' : '<?xml version="1.0" encoding="UTF-8"?>\n') + corps + '\n';
+}
+
+/** Si le fichier est un MusicXML emballé, renvoie un Blob réparé ; sinon le fichier tel quel. */
+export async function reparerSiBesoin(fichier) {
+  if (!(fichier instanceof Blob)) return { fichier, repare: false };
+  const debut = new Uint8Array(await fichier.slice(0, 2).arrayBuffer());
+  if (debut[0] === 0x50 && debut[1] === 0x4b) return { fichier, repare: false }; // .mxl (zip)
+  const texte = await fichier.text();
+  const repare = deballerMusicXML(texte);
+  if (!repare) return { fichier, repare: false };
+  const nom = (fichier.name || 'partition').replace(/\.xml$/i, '') + '.musicxml';
+  return { fichier: new File([repare], nom, { type: 'application/vnd.recordare.musicxml+xml' }), repare: true };
+}
+
 // --- Affichage ---------------------------------------------------------------
 
 export class VuePartition {
