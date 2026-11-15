@@ -5,8 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { lireNotesMusicXML } from '../js/musicxml.js?v=2026-11-15k';
-import { analyserPrise } from '../js/analyse.js?v=2026-11-15k';
+import { lireNotesMusicXML } from '../js/musicxml.js?v=2026-11-15l';
+import { analyserPrise } from '../js/analyse.js?v=2026-11-15l';
 
 const XML = readFileSync(new URL('../exemples/notes-guides.musicxml', import.meta.url), 'utf8');
 const PARTITION = lireNotesMusicXML(XML);

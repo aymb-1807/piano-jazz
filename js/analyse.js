@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15k';
-import { NOMS } from './accords.js?v=2026-11-15k';
+import { lireGrille } from './grille.js?v=2026-11-15l';
+import { NOMS } from './accords.js?v=2026-11-15l';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant
@@ -250,6 +250,7 @@ function harmonie(acc, attaquees, sonnantes, estStructurelle, position, ecrites 
   }
   return {
     joue: attaquees.length > 0 || sonnantes.length > 0,
+    attendues: attendues.length - manquantesEcrites.length, // notes guides exigées (hors celles absentes de la partition)
     notesJouees: [...pcs].map(pc => NOMS[pc]),
     fondamentale: pcs.has(acc.fondamentale),
     manquantes,
@@ -429,6 +430,7 @@ function resumer(segs, S, prise, { rythme = true, comparaison = null } = {}) {
     },
     aTravailler,
     pedale: statsPedale(prise, segs, S),
+    ...reussiteParMesure(segs, S, rythme),
     partition: resumerPartition(segs, comparaison),
   };
 }
@@ -585,4 +587,55 @@ function resumerPartition(segs, cmp) {
     guidesAbsentesDeLaPartition: avec.reduce((x, s) => x + (s.manquantesEcrites?.length || 0), 0),
     notesEcritesHorsAccord: avec.reduce((x, s) => x + (s.notesEcritesHorsAccord || 0), 0),
   };
+}
+
+// --- Taux de réussite par mesure ----------------------------------------------------------
+
+/**
+ * Taux de réussite (0-100) de chaque mesure jouée.
+ * Avec partition : notes jouées comme écrites (ou à l'octave) / (notes écrites + ajouts hors accord).
+ * Sans partition : points obtenus / points possibles, avec 1 point si l'accord est joué, 1 par note guide
+ * présente, 1 si l'attaque est en place (quand le rythme est jugé), moins 1 par fausse note.
+ */
+export function reussiteParMesure(segs, S = SEUILS, rythme = true) {
+  const parMesure = new Map();
+  for (const s of segs) {
+    if (s.nc) continue;
+    let obtenu, possible, base;
+    if (s.partition && s.partition.ecrites > 0) {
+      base = 'partition';
+      possible = s.partition.ecrites + s.partition.ajouteesHors.length;
+      obtenu = s.partition.exactes + s.partition.octave;
+    } else {
+      base = 'accords';
+      const attendues = s.attendues ?? 2;
+      const rythmeCompte = rythme && s.decalageMs !== undefined;
+      possible = 1 + attendues + (rythmeCompte ? 1 : 0);
+      if (!s.joue) obtenu = 0;
+      else {
+        obtenu = 1 + Math.max(0, attendues - s.manquantes.length) - s.fausses.length
+          + (rythmeCompte && s.decalageMs != null && Math.abs(s.decalageMs) <= S.enPlaceMs ? 1 : 0);
+      }
+    }
+    const m = parMesure.get(s.mesure) || { mesure: s.mesure, obtenu: 0, possible: 0, base };
+    m.obtenu += Math.max(0, obtenu); m.possible += possible;
+    parMesure.set(s.mesure, m);
+  }
+  const liste = [...parMesure.values()].sort((a, b) => a.mesure - b.mesure)
+    .map(m => ({ mesure: m.mesure, taux: m.possible ? Math.round(100 * Math.min(m.obtenu, m.possible) / m.possible) : 0, base: m.base }));
+  if (!liste.length) return { parMesure: [], plusFaibles: [], decrochage: null };
+
+  const moy = v => v.reduce((a, b) => a + b, 0) / v.length;
+  const plusFaibles = liste.filter(m => m.taux < 100).slice().sort((a, b) => a.taux - b.taux || a.mesure - b.mesure).slice(0, 3);
+
+  // Décrochage : coupure qui sépare le mieux un début réussi d'une suite moins réussie (≥ 3 mesures de chaque côté)
+  let decrochage = null;
+  for (let k = 3; k <= liste.length - 3; k++) {
+    const avant = moy(liste.slice(0, k).map(m => m.taux)), apres = moy(liste.slice(k).map(m => m.taux));
+    const ecart = avant - apres;
+    if (ecart >= 20 && apres < 75 && (!decrochage || ecart > decrochage.ecart)) {
+      decrochage = { aPartirDe: liste[k].mesure, avant: Math.round(avant), apres: Math.round(apres), ecart: Math.round(ecart) };
+    }
+  }
+  return { parMesure: liste, plusFaibles, decrochage, reussiteMoyenne: Math.round(moy(liste.map(m => m.taux))) };
 }
