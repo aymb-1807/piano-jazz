@@ -3,7 +3,7 @@
 // même à 50 BPM. Chaque temps joué est horodaté dans le repère performance.now()
 // – le même que les horodatages MIDI – pour l'analyse rythmique de l'étape 3.
 
-import { accordA } from './grille.js?v=2026-11-15b';
+import { accordA } from './grille.js?v=2026-11-15c';
 
 const ANTICIPATION = 0.15; // s d'audio programmé à l'avance
 const PERIODE = 25;        // ms entre deux passages de l'ordonnanceur
