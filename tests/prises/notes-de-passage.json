@@ -1,0 +1,322 @@
+{
+ "format": "piano-jazz/prise@1",
+ "description": "Voicings exacts + mélodie en croches à la main droite avec notes chromatiques brèves à contretemps.",
+ "date": "2026-11-15T00:00:00.000Z",
+ "grille": {
+  "id": "exercice-exemple",
+  "titre": "Notes guides – Misty mes. 5-8",
+  "texte": "titre: Notes guides – Misty mes. 5-8\ntype: exercice\nsource: Misty, mesures 5-8\ntonalité: Eb\nmesure: 4/4\ntempo: 56\nboucle: oui\nobjectif: Main gauche seule, 3ce et 7e de chaque accord sur le 1er temps de l'accord, en conduisant les voix au plus proche (pas de saut > 2 demi-tons).\ncritere: notes guides présentes sur 100 % des accords, attaque à ±80 ms du temps\npartition: exemples/notes-guides.musicxml\n\n[II-V]\nEbmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7\n",
+  "transposition": 0
+ },
+ "tempo": 60,
+ "calageMs": 0,
+ "temps": [
+  {
+   "tour": 0,
+   "mesure": -1,
+   "temps": 0,
+   "decompte": true,
+   "t": -4000
+  },
+  {
+   "tour": 0,
+   "mesure": -1,
+   "temps": 1,
+   "decompte": true,
+   "t": -3000
+  },
+  {
+   "tour": 0,
+   "mesure": -1,
+   "temps": 2,
+   "decompte": true,
+   "t": -2000
+  },
+  {
+   "tour": 0,
+   "mesure": -1,
+   "temps": 3,
+   "decompte": true,
+   "t": -1000
+  },
+  {
+   "tour": 0,
+   "mesure": 0,
+   "temps": 0,
+   "t": 0
+  },
+  {
+   "tour": 0,
+   "mesure": 0,
+   "temps": 1,
+   "t": 1000
+  },
+  {
+   "tour": 0,
+   "mesure": 0,
+   "temps": 2,
+   "t": 2000
+  },
+  {
+   "tour": 0,
+   "mesure": 0,
+   "temps": 3,
+   "t": 3000
+  },
+  {
+   "tour": 0,
+   "mesure": 1,
+   "temps": 0,
+   "t": 4000
+  },
+  {
+   "tour": 0,
+   "mesure": 1,
+   "temps": 1,
+   "t": 5000
+  },
+  {
+   "tour": 0,
+   "mesure": 1,
+   "temps": 2,
+   "t": 6000
+  },
+  {
+   "tour": 0,
+   "mesure": 1,
+   "temps": 3,
+   "t": 7000
+  },
+  {
+   "tour": 0,
+   "mesure": 2,
+   "temps": 0,
+   "t": 8000
+  },
+  {
+   "tour": 0,
+   "mesure": 2,
+   "temps": 1,
+   "t": 9000
+  },
+  {
+   "tour": 0,
+   "mesure": 2,
+   "temps": 2,
+   "t": 10000
+  },
+  {
+   "tour": 0,
+   "mesure": 2,
+   "temps": 3,
+   "t": 11000
+  },
+  {
+   "tour": 0,
+   "mesure": 3,
+   "temps": 0,
+   "t": 12000
+  },
+  {
+   "tour": 0,
+   "mesure": 3,
+   "temps": 1,
+   "t": 13000
+  },
+  {
+   "tour": 0,
+   "mesure": 3,
+   "temps": 2,
+   "t": 14000
+  },
+  {
+   "tour": 0,
+   "mesure": 3,
+   "temps": 3,
+   "t": 15000
+  }
+ ],
+ "notes": [
+  {
+   "hauteur": 51,
+   "debut": 0,
+   "fin": 1950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 67,
+   "debut": 0,
+   "fin": 450,
+   "velocite": 60
+  },
+  {
+   "hauteur": 55,
+   "debut": 8,
+   "fin": 1950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 62,
+   "debut": 16,
+   "fin": 1950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 69,
+   "debut": 500,
+   "fin": 700,
+   "velocite": 55
+  },
+  {
+   "hauteur": 70,
+   "debut": 1000,
+   "fin": 1900,
+   "velocite": 60
+  },
+  {
+   "hauteur": 48,
+   "debut": 2000,
+   "fin": 3950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 51,
+   "debut": 2008,
+   "fin": 3950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 58,
+   "debut": 2016,
+   "fin": 3950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 53,
+   "debut": 4000,
+   "fin": 5950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 72,
+   "debut": 4000,
+   "fin": 4450,
+   "velocite": 60
+  },
+  {
+   "hauteur": 56,
+   "debut": 4008,
+   "fin": 5950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 63,
+   "debut": 4016,
+   "fin": 5950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 71,
+   "debut": 4500,
+   "fin": 4700,
+   "velocite": 55
+  },
+  {
+   "hauteur": 72,
+   "debut": 5000,
+   "fin": 5900,
+   "velocite": 60
+  },
+  {
+   "hauteur": 46,
+   "debut": 6000,
+   "fin": 7950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 50,
+   "debut": 6008,
+   "fin": 7950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 56,
+   "debut": 6016,
+   "fin": 7950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 55,
+   "debut": 8000,
+   "fin": 9950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 58,
+   "debut": 8008,
+   "fin": 9950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 65,
+   "debut": 8016,
+   "fin": 9950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 48,
+   "debut": 10000,
+   "fin": 11950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 52,
+   "debut": 10008,
+   "fin": 11950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 58,
+   "debut": 10016,
+   "fin": 11950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 53,
+   "debut": 12000,
+   "fin": 13950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 56,
+   "debut": 12008,
+   "fin": 13950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 63,
+   "debut": 12016,
+   "fin": 13950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 46,
+   "debut": 14000,
+   "fin": 15950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 50,
+   "debut": 14008,
+   "fin": 15950,
+   "velocite": 70
+  },
+  {
+   "hauteur": 56,
+   "debut": 14016,
+   "fin": 15950,
+   "velocite": 70
+  }
+ ],
+ "pedale": []
+}

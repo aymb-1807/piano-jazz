@@ -65,7 +65,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15b</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15c</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -187,10 +187,10 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15b';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15b';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15b';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-15b';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15c';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15c';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15c';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-15c';
 
 const $ = id => document.getElementById(id);
 const stock = {
