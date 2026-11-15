@@ -41,6 +41,18 @@
   .mes.plage{background:var(--sel)}
   .mes.hors{opacity:.45}
   .mes.cour{border-color:var(--acc)}
+  .mes.ok{box-shadow:inset 0 -4px 0 var(--ok)}
+  .mes.moyen{box-shadow:inset 0 -4px 0 #e0a84f}
+  .mes.pb{box-shadow:inset 0 -4px 0 var(--err)}
+  #rapport{font-size:.9rem;line-height:1.5;margin-top:10px}
+  #rapport h3{font-size:.8rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px;font-weight:600}
+  #rapport ul{margin:0;padding-left:18px}
+  .chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+  .chiffre{background:var(--card2);border-radius:8px;padding:8px 10px}
+  .chiffre b{display:block;font-size:1.4rem;color:var(--fg)}
+  .chiffre span{font-size:.75rem;color:var(--mut)}
+  .case{display:flex;align-items:center;gap:8px;font-size:.95rem}
+  .case input{width:22px;height:22px;accent-color:var(--acc)}
   .mes .ch{min-width:0}
   .mes.multi{padding:4px 3px;gap:2px}
   .mes.multi .ch{font-size:.85rem;letter-spacing:-.02em}
@@ -106,6 +118,23 @@
   <div class="row" style="margin-top:8px">
     <label class="fichier">Importer une partition…<input type="file" id="fichierParti" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml" hidden></label>
     <button id="retirerParti" style="display:none">Retirer</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="lbl">Prise (piano MIDI)</div>
+  <div class="row">
+    <button id="connecterMidi">Connecter le piano</button>
+    <label class="case"><input type="checkbox" id="enregistrer" disabled> Enregistrer pendant la lecture</label>
+  </div>
+  <div class="mut" id="etatMidi" style="font-size:.82rem;margin-top:6px">Piano non connecté.</div>
+  <div class="row" style="margin-top:8px">
+    <button id="calibrer" disabled>Calibrer la latence</button>
+    <span class="mut" id="etatCalage" style="font-size:.82rem"></span>
+  </div>
+  <div id="rapport"></div>
+  <div class="row" style="margin-top:8px">
+    <button id="exporter" style="display:none">Exporter la prise (JSON)</button>
   </div>
 </div>
 
@@ -190,7 +219,9 @@
 import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15c';
 import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15c';
 import { Accompagnement } from './js/accomp.js?v=2026-11-15c';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-15c';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise } from './js/partition.js?v=2026-11-15c';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15c';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15c';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -330,7 +361,9 @@ function afficherAccord(iMesure, temps) {
 }
 
 acc.surTemps = e => {
+  enr.surTemps(e);
   const dc = $('decompte');
+  if (calibrationEnCours) { dc.style.display = 'flex'; dc.textContent = e.decompte ? '…' : String(e.temps + 1); return; }
   if (e.decompte) {
     dc.style.display = 'flex';
     if (e.libelle) dc.textContent = e.libelle;
@@ -354,7 +387,7 @@ const diag = { image: 0, temps: 0, dernier: '-' };
 function placerCurseur(mesure, temps) {
   if (Number.isInteger(temps)) diag.temps++; else diag.image++;
   diag.dernier = `mes. ${mesure + 1}, temps ${temps.toFixed(2)}`;
-  if (!partitionPrete) return;
+  if (!partitionPrete || calibrationEnCours) return;
   try { vue.placer(mesure, temps, 4); }
   catch (err) {
     if (erreurCurseur) return; // signalée une seule fois
@@ -363,7 +396,7 @@ function placerCurseur(mesure, temps) {
     $('partiInfo').insertAdjacentHTML('beforeend', `<br><span class="err">Curseur bloqué : ${echap(err.message || String(err))}</span>`);
   }
 }
-acc.surFin = () => { majBouton(); finLecture(); };
+acc.surFin = () => { majBouton(); finLecture(); terminerPrise(); };
 
 function finLecture() {
   $('decompte').style.display = 'none';
@@ -374,9 +407,17 @@ function finLecture() {
 
 // --- Lecture ---------------------------------------------------------------
 $('jouer').onclick = async () => {
-  if (acc.enCours) { acc.arreter(); finLecture(); majBouton(); return; }
+  if (acc.enCours) { acc.arreter(); finLecture(); majBouton(); terminerPrise(); return; }
   if (!grille) return;
   const [d, f] = plage || [1, grille.mesures.length];
+  if ($('enregistrer').checked && midiConnecte) {
+    effacerCouleurs();
+    enr.demarrer({
+      grille: { id: idCourant, titre: grille.meta.titre, texte: texteDe(idCourant), transposition: grille.meta.transposition || 0 },
+      tempo: acc.reglages.tempo,
+      calageMs: stock.lire('calageMs', 0),
+    });
+  }
   if (partitionPrete) vue.placer(d - 1, 0); // curseur en place dès le décompte
   await acc.demarrer(grille, { debut: d, fin: f, boucle: $('boucle').value === '1' });
   garderEcran();
@@ -519,6 +560,115 @@ setInterval(() => {
   L.push(`erreurs : ${window.__erreurs.length ? window.__erreurs.slice(-5).join(' | ') : 'aucune'}`);
   $('diagTxt').textContent = L.join('\n');
 }, 300);
+
+// --- Prise : MIDI, calibration, analyse ------------------------------------------
+const midi = new EntreeMidi();
+const enr = new Enregistreur();
+let midiConnecte = false, calibrationEnCours = false, reglagesAvantCalage = null, dernierePrise = null;
+midi.ecouter((data, t) => enr.surMidi(data, t));
+midi.surEtat = noms => {
+  midiConnecte = noms.length > 0;
+  $('etatMidi').innerHTML = midiConnecte
+    ? `<span style="color:var(--ok)">Connecté : ${echap(noms.join(', '))}</span>`
+    : '<span class="err">Aucun instrument détecté : vérifie le câble (adaptateur OTG) et que le piano est allumé.</span>';
+  $('enregistrer').disabled = !midiConnecte; $('calibrer').disabled = !midiConnecte;
+  if (midiConnecte && !$('enregistrer').dataset.vu) { $('enregistrer').checked = true; $('enregistrer').dataset.vu = '1'; }
+};
+$('connecterMidi').onclick = async () => {
+  try { await midi.connecter(); }
+  catch (e) { $('etatMidi').innerHTML = `<span class="err">${echap(e.message || String(e))}</span>`; }
+};
+function afficherCalage() {
+  const c = stock.lire('calageMs', null);
+  $('etatCalage').textContent = c == null ? 'Latence non calibrée (calage 0 ms).' : `Calage : ${c > 0 ? '+' : ''}${c} ms.`;
+}
+afficherCalage();
+
+$('calibrer').onclick = async () => {
+  if (acc.enCours || !midiConnecte) return;
+  calibrationEnCours = true;
+  reglagesAvantCalage = { tempo: acc.reglages.tempo, decompte: acc.reglages.decompte, mode: acc.reglages.mode };
+  acc.regler('tempo', 80); acc.reglages.decompte = 1; acc.reglages.mode = 'metro';
+  const texte = 'titre: Calage\n[Calage]\nN.C. | N.C. | N.C.';
+  $('etatCalage').textContent = 'Après le décompte, joue une touche pile sur chacun des 12 clics.';
+  enr.demarrer({ grille: { id: 'calage', titre: 'Calage', texte, transposition: 0 }, tempo: 80, calageMs: 0 });
+  await acc.demarrer(lireGrille(texte), { debut: 1, fin: 3, boucle: false });
+  majBouton();
+};
+
+function terminerPrise() {
+  const p = enr.arreter();
+  if (calibrationEnCours) {
+    calibrationEnCours = false;
+    acc.regler('tempo', reglagesAvantCalage.tempo); Object.assign(acc.reglages, { decompte: reglagesAvantCalage.decompte, mode: reglagesAvantCalage.mode });
+    $('decompte').style.display = 'none';
+    const r = p ? calculerCalage(p.temps.filter(b => !b.decompte), p.notes.map(n => n.debut)) : { calageMs: null };
+    if (r.calageMs == null) { $('etatCalage').innerHTML = '<span class="err">Pas assez de notes jouées sur les clics : recommence.</span>'; return; }
+    stock.ecrire('calageMs', r.calageMs);
+    afficherCalage();
+    $('etatCalage').textContent += ` (${r.ecarts.length} notes, dispersion ±${Math.round(r.dispersionMs || 0)} ms)`;
+    return;
+  }
+  if (!p) return;
+  if (!p.notes.length) { $('rapport').innerHTML = '<p class="mut">Aucune note enregistrée pendant la lecture.</p>'; return; }
+  dernierePrise = p;
+  $('exporter').style.display = '';
+  enregistrerPrise(p).catch(() => {});
+  try { afficherRapport(analyserPrise(p)); }
+  catch (e) { $('rapport').innerHTML = `<p class="err">Analyse impossible : ${echap(e.message || String(e))}</p>`; }
+}
+
+function effacerCouleurs() { elMesures.forEach(el => el?.classList.remove('ok', 'moyen', 'pb')); }
+
+function afficherRapport({ segments, resume: r }) {
+  // couleur des mesures dans la grille
+  effacerCouleurs();
+  const etat = {};
+  for (const s of segments) {
+    if (s.nc) continue;
+    const grave = !s.joue || s.fausses.length > 0;
+    const moyen = s.manquantes.length > 0 || (s.decalageMs != null && Math.abs(s.decalageMs) > 120);
+    const v = grave ? 2 : moyen ? 1 : 0;
+    etat[s.mesure] = Math.max(etat[s.mesure] ?? 0, v);
+  }
+  for (const [m, v] of Object.entries(etat)) elMesures[m - 1]?.classList.add(['ok', 'moyen', 'pb'][v]);
+
+  const signe = x => x == null ? '–' : (x > 0 ? '+' : '') + x;
+  const ry = r.rythme;
+  const tendance = ry.decalageMoyenMs == null ? '' : Math.abs(ry.decalageMoyenMs) <= 20 ? 'centré' : ry.decalageMoyenMs > 0 ? 'en retard' : 'en avance';
+  const lignesVoicings = Object.entries(r.voicings).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${echap(t)} ×${n}`).join(' · ') || '—';
+  const manques = Object.entries(r.manquesParType).map(([t, n]) => `${t} ×${n}`).join(', ');
+  $('rapport').innerHTML = `
+    <h3>Bilan de la prise</h3>
+    <div class="chiffres">
+      <div class="chiffre"><b>${r.accordsJoues}/${r.accords}</b><span>accords joués</span></div>
+      <div class="chiffre"><b>${r.notesGuidesCompletes ?? '–'} %</b><span>notes guides complètes</span></div>
+      <div class="chiffre"><b>${r.faussesNotes}</b><span>${r.faussesNotes > 1 ? 'fausses notes' : 'fausse note'}</span></div>
+      <div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place (±60 ms)</span></div>
+    </div>
+    <h3>Rythme</h3>
+    <p style="margin:0">${ry.attaquesMesurees} attaques d'accord mesurées · décalage moyen ${signe(ry.decalageMoyenMs)} ms (${tendance}) · régularité ±${ry.ecartTypeMs ?? '–'} ms</p>
+    <h3>Harmonie</h3>
+    <p style="margin:0">Notes manquantes : ${manques || 'aucune'} · notes de passage : ${r.notesDePassage}</p>
+    ${r.detailFausses.length ? `<ul>${r.detailFausses.slice(0, 6).map(f => `<li>mes. ${f.mesure} ${echap(f.symbole)} : ${echap(f.note)} (${echap(f.degre)}, ${f.classe === 'eviter' ? 'note à éviter' : 'hors accord'})</li>`).join('')}</ul>` : ''}
+    <h3>Voicings</h3>
+    <p style="margin:0">${lignesVoicings}</p>
+    <h3>À travailler</h3>
+    ${r.aTravailler.length ? `<ul>${r.aTravailler.map(a => `<li>mes. ${a.mesure} — ${a.raisons.map(echap).join(' ; ')}</li>`).join('')}</ul>` : '<p style="margin:0">Rien de marquant sur cette prise.</p>'}
+    <p class="mut" style="font-size:.78rem;margin-top:8px">Analyse par rapport à la grille d'accords (pas encore aux notes écrites de la partition). Calage appliqué : ${dernierePrise.calageMs} ms.</p>`;
+}
+
+$('exporter').onclick = () => {
+  if (!dernierePrise) return;
+  const nom = `prise-${(dernierePrise.grille.id || 'grille')}-${dernierePrise.date.slice(0, 16).replace(/[:T]/g, '-')}.json`;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(dernierePrise, null, 1)], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = url; a.download = nom; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+// Simulation MIDI pour les tests automatisés (aucun effet en usage normal)
+window.__simulerMidi = (data, t = performance.now()) => enr.surMidi(data, t);
+window.__forcerMidi = () => midi.surEtat(['piano simulé']);
 
 remplirChoix();
 charger(idCourant);

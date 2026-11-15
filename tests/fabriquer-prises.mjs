@@ -68,9 +68,10 @@ const PRISES = {
   'notes-de-passage': prise('notes-de-passage', 'Voicings exacts + mélodie en croches à la main droite avec notes chromatiques brèves à contretemps.', {
     notes: [
       ...voicings(),
-      // mesure 1 (Ebmaj7) : sol (temps), la♭... puis la bécarre bref à contretemps (hors accord, note de passage)
+      // mesure 1 (Ebmaj7) : sol sur le temps, puis mi bécarre bref à contretemps (♭9 de E♭ : hors accord → passage)
+      // (un la bécarre serait une ♯11, donc une tension, pas une note de passage)
       { hauteur: 67, debut: 0, fin: 450, velocite: 60 },        // G4 sur le temps
-      { hauteur: 69, debut: 500, fin: 700, velocite: 55 },      // A4 bref, contretemps → passage
+      { hauteur: 64, debut: 500, fin: 700, velocite: 55 },      // E4 bref, contretemps → passage
       { hauteur: 70, debut: 1000, fin: 1900, velocite: 60 },    // Bb4 sur le temps
       // mesure 2 (Fm7) : do, si bécarre bref à contretemps (hors accord), do
       { hauteur: 72, debut: 4000, fin: 4450, velocite: 60 },

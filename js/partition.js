@@ -18,25 +18,35 @@ function chargerOSMD() {
 
 // --- Stockage local ----------------------------------------------------------
 
-const BASE = 'piano-jazz', MAGASIN = 'partitions';
+// Base locale commune : partitions importées (clé = id de grille) et prises enregistrées (étape 3).
+const BASE = 'piano-jazz', MAGASIN = 'partitions', PRISES = 'prises';
 
 function ouvrirBase() {
   return new Promise((ok, ko) => {
-    const r = indexedDB.open(BASE, 1);
-    r.onupgradeneeded = () => r.result.createObjectStore(MAGASIN);
+    const r = indexedDB.open(BASE, 2);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains(MAGASIN)) db.createObjectStore(MAGASIN);
+      if (!db.objectStoreNames.contains(PRISES)) db.createObjectStore(PRISES, { autoIncrement: true });
+    };
     r.onsuccess = () => ok(r.result);
     r.onerror = () => ko(r.error);
   });
 }
 
-async function transaction(mode, action) {
+async function transaction(mode, action, magasin = MAGASIN) {
   const db = await ouvrirBase();
   return new Promise((ok, ko) => {
-    const tx = db.transaction(MAGASIN, mode);
-    const req = action(tx.objectStore(MAGASIN));
+    const tx = db.transaction(magasin, mode);
+    const req = action(tx.objectStore(magasin));
     tx.oncomplete = () => { ok(req?.result); db.close(); };
     tx.onerror = () => { ko(tx.error); db.close(); };
   });
+}
+
+/** Conserve une prise (format piano-jazz/prise@1) pour le suivi de progression. */
+export function enregistrerPrise(prise) {
+  return transaction('readwrite', st => st.add(prise), PRISES);
 }
 
 /** Enregistre le fichier choisi par l'utilisateur pour une grille donnée. */

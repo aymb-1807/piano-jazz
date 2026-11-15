@@ -41,6 +41,11 @@ function degre(accord, intervalle) {
     // note de l'accord : nom fonctionnel
     return { 3: '3', 4: '3', 5: accord.qualite.includes('sus') ? '4' : '11', 6: '♭5', 7: '5', 8: '♯5', 9: accord.qualite === 'dim7' ? '♭♭7' : '6', 10: '7', 11: '7' }[intervalle];
   }
+  // hors accord : nommer la note par rapport à ce qu'elle contredit
+  if (intervalle === 4 && iv.includes(3)) return '3M (au lieu de ♭3)';
+  if (intervalle === 3 && iv.includes(4)) return '♭3 (au lieu de 3)';
+  if (intervalle === 11 && iv.includes(10)) return '7M (au lieu de ♭7)';
+  if (intervalle === 10 && iv.includes(11)) return '♭7 (au lieu de 7M)';
   return DEGRES[intervalle];
 }
 
