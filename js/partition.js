@@ -73,7 +73,8 @@ export class VuePartition {
       drawComposer: true,
       drawPartNames: false,
       followCursor: true,       // fait défiler la page pour garder le curseur visible
-      pageBackgroundColor: '#fbf8f1',
+      // pas de pageBackgroundColor : un fond opaque dans le SVG recouvre le curseur après un nouveau rendu
+      // (redimensionnement, barre d'adresse Android) ; le fond est donné par le CSS du conteneur.
     });
     await this.osmd.load(source);
     this.osmd.zoom = this.zoom;
