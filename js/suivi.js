@@ -2,7 +2,7 @@
 // Utilisé seulement pour l'affichage (accord en cours, curseur) : l'analyse finale refait un
 // alignement complet de la prise (analyse.js, analyserPriseLibre).
 
-import { suiteAccords, scoreHarmonique } from './analyse.js?v=2026-11-15h';
+import { suiteAccords, scoreHarmonique } from './analyse.js?v=2026-11-15i';
 
 const REGROUPEMENT_MS = 170;  // attendre la fin d'un accord (plaqué ou roulé) avant d'évaluer
 const MARGE = 1.0;            // avance seulement si l'accord suivant colle nettement mieux

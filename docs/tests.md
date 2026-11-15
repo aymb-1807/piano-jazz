@@ -40,6 +40,8 @@ Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM, voicings F-3-7.
 | `libre-saut` | Rubato : un accord sauté est signalé, les suivants restent alignés |
 | `libre-fausse-note` | Rubato : la bécarre dans le voicing de B♭7 détecté |
 | `libre-arrete` | Rubato : arrêt en cours de grille, seuls les accords atteints sont jugés |
+| `libre-arpege` | Rubato avec accords roulés (120 ms entre les notes) reconnus comme des accords |
+| `libre-pedale-continue` | Pédale enfoncée du début à la fin : les accords ne se mélangent pas (prolongement plafonné à 0,7 s) |
 
 ## Ajouter une vraie prise
 
@@ -48,6 +50,8 @@ Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM, voicings F-3-7.
 3. Ajouter un test qui fixe le résultat attendu (établi en écoutant ou en relisant la prise).
 
 Les vraies prises serviront surtout à **régler les seuils** de l'ADR-0004 (anticipation, tolérance rythmique, note structurelle).
+
+⚠ **Droits d'auteur** : une prise jouée sur un arrangement protégé (ex. Autumn Leaves, arr. James Wolff) contient les notes de cet arrangement. Elle **ne va pas dans le dépôt public**. On en tire une prise synthétique qui reproduit le phénomène observé (ex. `libre-pedale-continue`, issue d'une vraie prise où la pédale restait enfoncée 53 s). Seules les prises sur des grilles ou exercices originaux peuvent être versionnées telles quelles.
 
 ## Lacunes connues
 

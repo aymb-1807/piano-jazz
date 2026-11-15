@@ -4,8 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15h';
-import { analyserAccord } from '../js/accords.js?v=2026-11-15h';
+import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15i';
+import { analyserAccord } from '../js/accords.js?v=2026-11-15i';
 
 const charger = (nom) => JSON.parse(readFileSync(new URL(`./prises/${nom}.json`, import.meta.url), 'utf8'));
 const analyser = (nom) => analyserPrise(charger(nom));
@@ -166,4 +166,16 @@ test('libre arpégé : accords roulés reconnus comme des accords', () => {
   assert.ok(r.segments.every(s => s.joue && s.manquantes.length === 0), JSON.stringify(r.segments.map(s => [s.symbole, s.manquantes])));
   assert.equal(r.resume.faussesNotes, 0);
   assert.ok(r.segments.every(s => s.voicings.length >= 1), 'un voicing par accord');
+});
+
+test('libre, pédale tenue tout du long : les accords ne se mélangent pas', () => {
+  const r = analyser('libre-pedale-continue');
+  assert.deepEqual(r.segments.map(s => s.symbole), ['Ebmaj7', 'Cm7', 'Fm7', 'Bb7', 'Gm7', 'C7', 'Fm7', 'Bb7']);
+  assert.equal(r.resume.faussesNotes, 0);
+});
+
+test('touches effleurées (vélocité < 8) ignorées', () => {
+  const p = charger('juste');
+  const avec = { ...p, notes: [...p.notes, { hauteur: 52, debut: 0, fin: 1900, velocite: 1 }] }; // mi bécarre inaudible sur Ebmaj7
+  assert.equal(analyserPrise(avec).resume.faussesNotes, 0);
 });

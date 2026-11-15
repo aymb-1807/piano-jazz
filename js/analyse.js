@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15h';
-import { NOMS } from './accords.js?v=2026-11-15h';
+import { lireGrille } from './grille.js?v=2026-11-15i';
+import { NOMS } from './accords.js?v=2026-11-15i';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant
@@ -15,6 +15,8 @@ export const SEUILS = {
   // Jeu libre (rubato) : pas de temps de référence
   tenueLibreMs: 400,    // note isolée structurelle si tenue au moins 400 ms
   attaqueLibreMs: 150,  // accord roulé/arpégé : notes enchaînées à moins de 150 ms = une seule attaque
+  pedaleMaxMs: 700,     // une note tenue par la pédale ne « sonne » pas plus de 0,7 s après le relâchement de la touche
+  velociteMin: 8,       // en dessous : touche effleurée, inaudible, ignorée
   sauterAccord: 3,      // pénalité d'alignement pour un accord de la grille sauté
   resterAccord: 0.2,    // pénalité légère pour rester sur le même accord (mélodie, arpège)
 };
@@ -139,9 +141,9 @@ export function analyserPrise(prise, seuils = {}) {
   const pedale = (prise.pedale || []).slice().sort((a, b) => a.t - b.t);
   const pedaleEnfonceeA = (t) => { let e = false; for (const p of pedale) { if (p.t > t) break; e = p.enfoncee; } return e; };
   const relachePedaleApres = (t) => pedale.find(p => p.t > t && !p.enfoncee)?.t ?? Infinity;
-  const notes = prise.notes.map((n, idx) => {
+  const notes = prise.notes.filter(n => (n.velocite ?? 64) >= S.velociteMin).map((n, idx) => {
     const debut = n.debut - cal, fin = n.fin - cal;
-    const finSonore = pedaleEnfonceeA(n.fin) ? Math.max(fin, relachePedaleApres(n.fin) - cal) : fin;
+    const finSonore = pedaleEnfonceeA(n.fin) ? Math.min(Math.max(fin, relachePedaleApres(n.fin) - cal), fin + S.pedaleMaxMs) : fin;
     return { idx, hauteur: n.hauteur, velocite: n.velocite, debut, fin, finSonore };
   }).sort((a, b) => a.debut - b.debut);
 
@@ -288,9 +290,9 @@ function analyserPriseLibre(prise, S) {
   const pedale = (prise.pedale || []).slice().sort((a, b) => a.t - b.t);
   const pedaleEnfonceeA = (t) => { let e = false; for (const p of pedale) { if (p.t > t) break; e = p.enfoncee; } return e; };
   const relachePedaleApres = (t) => pedale.find(p => p.t > t && !p.enfoncee)?.t ?? Infinity;
-  const notes = prise.notes.map(n => ({
+  const notes = prise.notes.filter(n => (n.velocite ?? 64) >= S.velociteMin).map(n => ({
     hauteur: n.hauteur, velocite: n.velocite, debut: n.debut, fin: n.fin,
-    finSonore: pedaleEnfonceeA(n.fin) ? Math.max(n.fin, relachePedaleApres(n.fin)) : n.fin,
+    finSonore: pedaleEnfonceeA(n.fin) ? Math.min(Math.max(n.fin, relachePedaleApres(n.fin)), n.fin + S.pedaleMaxMs) : n.fin,
   })).sort((a, b) => a.debut - b.debut);
 
   // Attaques, puis fenêtres harmoniques délimitées par les attaques d'accord (≥ 2 notes).
