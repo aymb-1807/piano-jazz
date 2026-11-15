@@ -77,7 +77,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15c</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15d</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -216,12 +216,12 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15c';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15c';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15c';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise } from './js/partition.js?v=2026-11-15c';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15c';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15c';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15d';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15d';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15d';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15d';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15d';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15d';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -514,12 +514,15 @@ async function chargerPartition(id) {
 }
 
 $('fichierParti').onchange = async e => {
-  const f = e.target.files[0];
+  let f = e.target.files[0];
   e.target.value = '';
   if (!f) return;
+  let repare = false;
+  try { ({ fichier: f, repare } = await reparerSiBesoin(f)); } catch {}
   try { await enregistrerPartition(idCourant, f); }
   catch (err) { $('partiInfo').innerHTML = `<span class="err">Impossible d'enregistrer le fichier : ${echap(err.message || String(err))}</span>`; return; }
-  chargerPartition(idCourant);
+  await chargerPartition(idCourant);
+  if (repare) $('partiInfo').insertAdjacentHTML('beforeend', '<br><span style="color:var(--ok)">Fichier réparé à l\'import (MusicXML emballé dans un format tableur).</span>');
 };
 $('retirerParti').onclick = async () => {
   if (!confirm('Retirer la partition de cet appareil ?')) return;
