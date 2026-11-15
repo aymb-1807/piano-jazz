@@ -82,3 +82,9 @@ Demande du propriétaire : jouer l'arrangement « plus jazz », ou librement com
 - **Affichage en direct** (`js/suivi.js`) : version simplifiée et gloutonne (l'accord suivant doit coller nettement mieux, à chaque accord plaqué ; une note isolée ne fait pas avancer). L'analyse finale refait l'alignement complet, plus fiable.
 
 Limites : une grille où deux accords consécutifs sont très proches (ex. Cm7 → Cm6) peut être mal suivie en direct ; un pianiste qui rejoue plusieurs fois une section non écrite dans la grille sera aligné au mieux mais sans reprise. À valider sur de vraies prises.
+
+### Retour de la première vraie prise (15/11/2026)
+
+- **Pédale** : la prise montrait la pédale de sustain enfoncée sans interruption pendant 53 s ; en la suivant à la lettre, toutes les notes « sonnaient » ensemble et l'alignement décrochait (17 fausses notes inventées). Le prolongement par la pédale est désormais **plafonné à 0,7 s** après le relâchement de la touche (`pedaleMaxMs`). Avec 1,5 s, l'accord final était encore rattaché à l'accord suivant.
+- **Touches effleurées** (vélocité < 8, inaudibles) ignorées (`velociteMin`).
+- **Limite confirmée** : les notes signalées « hors accord » sur cette prise (la♭ mes. 4, sol mes. 7, mi♭ mes. 16) sont **écrites dans l'arrangement** (chromatismes, marche de basse), et les 7es « manquantes » de F7 (mes. 3 et 11) le sont aussi sur la partition. L'analyse fondée sur la seule grille signale donc des choix de l'arrangeur : c'est la principale raison de passer à la comparaison avec le MusicXML.

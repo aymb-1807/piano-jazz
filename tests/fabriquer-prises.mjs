@@ -3,7 +3,7 @@
 // Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM → 1 temps = 1000 ms.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15h';
+import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15i';
 
 const T = 1000; // ms par temps
 const dossier = new URL('./prises/', import.meta.url);
@@ -86,6 +86,10 @@ const PRISES = {
 
   'libre-arpege': prise('libre-arpege', 'Rubato avec accords roulés (120 ms entre les notes), comme les arpèges de « Play freely ».', {
     notes: libre({ roule: 120 }), mode: 'libre', libre: true,
+  }),
+
+  'libre-pedale-continue': prise('libre-pedale-continue', 'Rubato avec la pédale de sustain enfoncée du début à la fin (cas réel observé).', {
+    notes: libre(), mode: 'libre', libre: true, pedale: [{ t: 100, enfoncee: true }, { t: 17700, enfoncee: false }],
   }),
 
   'libre-arrete': prise('libre-arrete', 'Rubato : arrêt après Fm7 (mes. 2, 3e accord).', {
