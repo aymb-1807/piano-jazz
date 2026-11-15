@@ -75,6 +75,17 @@
   #barrePE .acc{font-size:1.6rem;font-weight:700;color:var(--acc);min-width:4ch}
   #barrePE .pos{color:var(--mut);font-size:.9rem}
   #barrePE button{padding:12px 16px;font-size:1rem}
+  .rec{display:none;align-items:center;gap:6px;color:#fff;background:#b3261e;border-radius:999px;padding:3px 10px;font-size:.8rem;font-weight:700;letter-spacing:.02em}
+  .rec.on{display:inline-flex}
+  .rec::before{content:'';width:9px;height:9px;border-radius:50%;background:#fff;animation:clign 1s steps(2) infinite}
+  @keyframes clign{50%{opacity:.25}}
+  #bandeauBilan{display:none;margin-top:10px;background:var(--card2);border-radius:10px;padding:10px 12px;font-size:.92rem;line-height:1.45}
+  #bandeauBilan.on{display:block}
+  #bilanPE{display:none}
+  #zonePartition.plein #bilanPE.on{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,520px);
+    background:var(--card);color:var(--fg);border-radius:14px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:10}
+  #bilanPE .chiffres{margin:8px 0}
+  .liensBilan{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   #partition img[id^="cursorImg"]{z-index:5;pointer-events:none} /* curseur toujours au-dessus de la partition */
   .fichier{display:inline-block;background:var(--card2);border:1px solid #3a3f49;border-radius:10px;padding:10px 14px;font-size:.95rem;cursor:pointer}
   #partiInfo{font-size:.8rem;margin-top:6px;line-height:1.4}
@@ -84,7 +95,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15e</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15f</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -105,11 +116,13 @@
     </div>
     <div>
       <div id="position">mes. –</div>
+      <div style="text-align:right;margin-top:4px"><span class="rec" id="recPrincipal">Enregistrement</span></div>
       <div id="temps"></div>
     </div>
     <div id="decompte"></div>
   </div>
   <button class="prim" id="jouer" style="width:100%;margin-top:10px">▶ Jouer</button>
+  <div id="bandeauBilan" role="status"></div>
 </div>
 
 <div class="card">
@@ -126,11 +139,13 @@
       <button class="prim" id="jouerPE" style="padding:12px 18px">▶ Jouer</button>
       <span class="acc" id="accordPE">–</span>
       <span class="pos grow" id="positionPE"></span>
+      <span class="rec" id="recPE">REC</span>
       <button id="zMoinsPE" aria-label="Réduire">A−</button>
       <button id="zPlusPE" aria-label="Agrandir">A+</button>
       <button id="quitterPE" aria-label="Quitter le plein écran">✕</button>
     </div>
     <div id="partition"></div>
+    <div id="bilanPE" role="dialog" aria-label="Bilan de la prise"></div>
   </div>
   <div class="mut" id="partiInfo">Aucune partition. Importe un fichier MusicXML (.musicxml, .mxl) : il reste sur cet appareil.</div>
   <div class="row" style="margin-top:8px">
@@ -234,12 +249,12 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15e';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15e';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15e';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15e';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15e';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15e';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15f';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15f';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15f';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15f';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15f';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15f';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -439,6 +454,8 @@ $('jouer').onclick = async () => {
       calageMs: stock.lire('calageMs', 0),
     });
   }
+  masquerBilanCourt();
+  majVoyant();
   if (partitionPrete) vue.placer(d - 1, 0); // curseur en place dès le décompte
   await acc.demarrer(grille, { debut: d, fin: f, boucle: $('boucle').value === '1' });
   garderEcran();
@@ -649,6 +666,7 @@ $('calibrer').onclick = async () => {
 
 function terminerPrise() {
   const p = enr.arreter();
+  majVoyant();
   if (calibrationEnCours) {
     calibrationEnCours = false;
     acc.regler('tempo', reglagesAvantCalage.tempo); Object.assign(acc.reglages, { decompte: reglagesAvantCalage.decompte, mode: reglagesAvantCalage.mode });
@@ -661,12 +679,55 @@ function terminerPrise() {
     return;
   }
   if (!p) return;
-  if (!p.notes.length) { $('rapport').innerHTML = '<p class="mut">Aucune note enregistrée pendant la lecture.</p>'; return; }
+  if (!p.notes.length) {
+    $('rapport').innerHTML = '<p class="mut">Aucune note enregistrée pendant la lecture.</p>';
+    afficherBilanCourt('<span class="mut">Aucune note enregistrée pendant la lecture. Le piano est-il bien connecté ?</span>');
+    return;
+  }
   dernierePrise = p;
   $('exporter').style.display = '';
   enregistrerPrise(p).catch(() => {});
-  try { afficherRapport(analyserPrise(p)); }
-  catch (e) { $('rapport').innerHTML = `<p class="err">Analyse impossible : ${echap(e.message || String(e))}</p>`; }
+  try {
+    const a = analyserPrise(p);
+    afficherRapport(a);
+    afficherBilanCourt(resumeCourt(a.resume));
+  } catch (e) { $('rapport').innerHTML = `<p class="err">Analyse impossible : ${echap(e.message || String(e))}</p>`; }
+}
+
+// --- Voyant d'enregistrement et bilan court -----------------------------------------
+function majVoyant() {
+  const on = enr.actif && !calibrationEnCours;
+  $('recPrincipal').classList.toggle('on', on);
+  $('recPE').classList.toggle('on', on);
+}
+function resumeCourt(r) {
+  const ry = r.rythme;
+  const travail = r.aTravailler.slice(0, 2).map(a => `<li>mes. ${a.mesure} — ${echap(a.raisons[0])}</li>`).join('');
+  return `<b>Bilan de la prise</b>
+    <div class="chiffres">
+      <div class="chiffre"><b>${r.accordsJoues}/${r.accords}</b><span>accords joués</span></div>
+      <div class="chiffre"><b>${r.notesGuidesCompletes ?? '–'} %</b><span>notes guides</span></div>
+      <div class="chiffre"><b>${r.faussesNotes}</b><span>${r.faussesNotes > 1 ? 'fausses notes' : 'fausse note'}</span></div>
+      <div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place</span></div>
+    </div>
+    ${travail ? `<div>À travailler :</div><ul style="margin:2px 0 0;padding-left:18px">${travail}</ul>` : '<div>Rien de marquant sur cette prise.</div>'}`;
+}
+function afficherBilanCourt(html) {
+  const liens = `<div class="liensBilan"><button data-act="detail">Voir le détail</button><button data-act="fermer">Fermer</button></div>`;
+  $('bandeauBilan').innerHTML = html + liens; $('bandeauBilan').classList.add('on');
+  $('bilanPE').innerHTML = html + liens; $('bilanPE').classList.add('on');
+}
+function masquerBilanCourt() { $('bandeauBilan').classList.remove('on'); $('bilanPE').classList.remove('on'); }
+for (const id of ['bandeauBilan', 'bilanPE']) {
+  $(id).addEventListener('click', async ev => {
+    const act = ev.target.closest('button')?.dataset.act;
+    if (act === 'fermer') masquerBilanCourt();
+    if (act === 'detail') {
+      masquerBilanCourt();
+      if (zonePE.classList.contains('plein')) await quitterPleinEcran();
+      setTimeout(() => $('rapport').scrollIntoView({ block: 'start', behavior: 'smooth' }), 400);
+    }
+  });
 }
 
 function effacerCouleurs() { elMesures.forEach(el => el?.classList.remove('ok', 'moyen', 'pb')); }

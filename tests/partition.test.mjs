@@ -1,7 +1,7 @@
 // Réparation d'un MusicXML emballé dans un export de type tableur.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deballerMusicXML } from '../js/partition.js?v=2026-11-15e';
+import { deballerMusicXML } from '../js/partition.js?v=2026-11-15f';
 
 const ORIGINAL = [
   '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">',
