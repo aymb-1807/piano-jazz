@@ -44,6 +44,15 @@
   .mes.ok{box-shadow:inset 0 -4px 0 var(--ok)}
   .mes.moyen{box-shadow:inset 0 -4px 0 #e0a84f}
   .mes.pb{box-shadow:inset 0 -4px 0 var(--err)}
+  .mes .taux{position:absolute;top:2px;right:5px;font-size:.62rem;color:var(--mut);font-weight:600}
+  .barres{width:100%;height:150px;display:block;margin-top:4px}
+  .barres .b{fill:#e0a84f}
+  .barres .b.sel{fill:#f3cf8c}
+  .barres .seuil{stroke:#8b8f98;stroke-dasharray:4 4;stroke-width:1}
+  .barres .axe{stroke:#3a3f49;stroke-width:1}
+  .barres text{fill:#8b8f98;font-size:10px;font-family:system-ui,sans-serif}
+  .barres text.val{fill:#e8e6e1;font-weight:600}
+  #infoBarre{font-size:.82rem;color:var(--mut);min-height:1.2em}
   #rapport{font-size:.9rem;line-height:1.5;margin-top:10px}
   #rapport h3{font-size:.8rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px;font-weight:600}
   #rapport ul{margin:0;padding-left:18px}
@@ -95,7 +104,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15j</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15l</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -258,13 +267,14 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15j';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15j';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15j';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15j';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15j';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15j';
-import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15j';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15l';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15l';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15l';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin, deballerMusicXML } from './js/partition.js?v=2026-11-15l';
+import { lireNotesMusicXML } from './js/musicxml.js?v=2026-11-15l';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15l';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15l';
+import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15l';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -746,8 +756,30 @@ function terminerPrise() {
   dernierePrise = p;
   $('exporter').style.display = '';
   enregistrerPrise(p).catch(() => {});
+  analyserEtAfficher(p, idCourant);
+}
+
+// Notes écrites de la partition associée à la grille (fichier importé ou exemple du dépôt), ou raison de l'absence.
+async function notesEcrites(idGrille) {
   try {
-    const a = analyserPrise(p);
+    const locale = await lirePartition(idGrille);
+    let texte = null;
+    if (locale?.blob) {
+      const debut = new Uint8Array(await locale.blob.slice(0, 2).arrayBuffer());
+      if (debut[0] === 0x50 && debut[1] === 0x4b) return { raison: 'partition compressée (.mxl) : comparaison note à note non disponible, exporte-la en .musicxml' };
+      texte = await locale.blob.text();
+    } else if (grille?.meta.partition) {
+      texte = await (await fetch(grille.meta.partition)).text();
+    } else return { raison: null };
+    return { partition: lireNotesMusicXML(deballerMusicXML(texte) || texte) };
+  } catch (e) { return { raison: 'partition illisible pour la comparaison : ' + (e.message || e) }; }
+}
+
+async function analyserEtAfficher(p, idGrille) {
+  const { partition, raison } = await notesEcrites(idGrille);
+  try {
+    const a = analyserPrise(p, {}, { partition });
+    if (!partition && raison) a.resume.partition = { comparee: false, raison };
     afficherRapport(a);
     afficherBilanCourt(resumeCourt(a.resume));
   } catch (e) { $('rapport').innerHTML = `<p class="err">Analyse impossible : ${echap(e.message || String(e))}</p>`; }
@@ -765,12 +797,69 @@ function resumeCourt(r) {
   return `<b>Bilan de la prise</b>
     <div class="chiffres">
       <div class="chiffre"><b>${r.accordsJoues}/${r.accords}</b><span>accords joués</span></div>
+      ${r.partition?.comparee ? `<div class="chiffre"><b>${r.partition.fidelite ?? '–'} %</b><span>fidélité à la partition</span></div>` : ''}
       <div class="chiffre"><b>${r.notesGuidesCompletes ?? '–'} %</b><span>notes guides</span></div>
       <div class="chiffre"><b>${r.faussesNotes}</b><span>${r.faussesNotes > 1 ? 'fausses notes' : 'fausse note'}</span></div>
       ${r.rythme ? `<div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place</span></div>` : `<div class="chiffre"><b>—</b><span>${r.libre ? 'jeu libre' : 'rythme libre'}</span></div>`}
     </div>
     ${r.pedale?.alerte ? `<div class="err" style="margin-bottom:6px">⚠ ${echap(r.pedale.alerte)}</div>` : ''}
+    ${r.decrochage ? `<div style="margin-bottom:4px">📉 Ça décroche à partir de la mesure ${r.decrochage.aPartirDe} (${r.decrochage.avant} % avant, ${r.decrochage.apres} % après).</div>` : ''}
+    ${r.plusFaibles?.length ? `<div style="margin-bottom:4px">Mesures les plus faibles : ${r.plusFaibles.map(m => `${m.mesure} (${m.taux} %)`).join(', ')}.</div>` : ''}
     ${travail ? `<div>À travailler :</div><ul style="margin:2px 0 0;padding-left:18px">${travail}</ul>` : '<div>Rien de marquant sur cette prise.</div>'}`;
+}
+// Barres : une par mesure jouée, hauteur = taux de réussite, seuil 70 %, 3 plus faibles étiquetées.
+function graphiqueReussite(r) {
+  const L = r.parMesure || [];
+  if (!L.length) return '<p class="mut" style="margin:0">—</p>';
+  const W = 600, H = 150, g = 26, d = 6, bas = H - 18, haut = 14;
+  const pas = (W - g - d) / L.length, larg = Math.max(2, Math.min(28, pas - 2));
+  const y = v => bas - (bas - haut) * v / 100;
+  const faibles = new Set((r.plusFaibles || []).map(m => m.mesure));
+  const barres = L.map((m, i) => {
+    const x = g + i * pas + (pas - larg) / 2, h = Math.max(1, bas - y(m.taux));
+    const rr = Math.min(4, larg / 2, h);
+    // barre aux coins supérieurs arrondis, posée sur l'axe
+    const chemin = `M${x},${bas} V${bas - h + rr} Q${x},${bas - h} ${x + rr},${bas - h} H${x + larg - rr} Q${x + larg},${bas - h} ${x + larg},${bas - h + rr} V${bas} Z`;
+    const etiquette = faibles.has(m.mesure) ? `<text class="val" x="${x + larg / 2}" y="${y(m.taux) - 3}" text-anchor="middle">${m.taux}</text>` : '';
+    const numero = (L.length <= 20 || i % 4 === 0 || faibles.has(m.mesure)) ? `<text x="${x + larg / 2}" y="${H - 4}" text-anchor="middle">${m.mesure}</text>` : '';
+    // zone de contact plus large que la barre
+    return `<g><rect x="${g + i * pas}" y="${haut - 8}" width="${pas}" height="${bas - haut + 8}" fill="transparent" data-i="${i}"><title>mes. ${m.mesure} : ${m.taux} %</title></rect>
+      <path class="b" d="${chemin}" data-i="${i}"/>${etiquette}${numero}</g>`;
+  }).join('');
+  const svg = `<svg class="barres" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+      aria-label="Réussite par mesure : ${L.map(m => `mesure ${m.mesure} ${m.taux} %`).join(', ')}">
+    <line class="axe" x1="${g}" x2="${W - d}" y1="${bas}" y2="${bas}"/>
+    <line class="seuil" x1="${g}" x2="${W - d}" y1="${y(70)}" y2="${y(70)}"/>
+    <text x="${g - 4}" y="${y(100) + 3}" text-anchor="end">100</text>
+    <text x="${g - 4}" y="${y(70) + 3}" text-anchor="end">70</text>
+    <text x="${g - 4}" y="${bas + 3}" text-anchor="end">0</text>
+    ${barres}</svg>`;
+  const moyenne = r.reussiteMoyenne != null ? `Moyenne ${r.reussiteMoyenne} %. ` : '';
+  const dec = r.decrochage ? `<b>Ça décroche à partir de la mesure ${r.decrochage.aPartirDe}</b> (${r.decrochage.avant} % avant, ${r.decrochage.apres} % après). ` : 'Pas de décrochage marqué. ';
+  const base = L.some(m => m.base === 'partition') ? 'Calcul : notes jouées comme écrites, ajouts hors accord pénalisés.' : 'Calcul : accord joué, notes guides, placement, fausses notes (pas de partition importée).';
+  return svg + `<div id="infoBarre" aria-live="polite">Touche une barre pour voir sa valeur.</div>
+    <p style="margin:4px 0 0">${moyenne}${dec}${r.plusFaibles?.length ? `Mesures à travailler plus longuement : ${r.plusFaibles.map(m => `${m.mesure} (${m.taux} %)`).join(', ')}.` : ''}</p>
+    <p class="mut" style="margin:2px 0 0;font-size:.78rem">${base} Ligne pointillée : 70 %.</p>`;
+}
+document.addEventListener('click', ev => {
+  const cible = ev.target.closest?.('.barres [data-i]');
+  if (!cible) return;
+  const svg = cible.closest('svg');
+  svg.querySelectorAll('.b').forEach(b => b.classList.toggle('sel', b.dataset.i === cible.dataset.i));
+  const t = cible.parentNode.querySelector('title')?.textContent;
+  const info = document.getElementById('infoBarre'); if (info && t) info.textContent = t;
+});
+
+function textePartition(p) {
+  if (!p) return 'Aucune partition importée pour cette grille : analyse par rapport aux accords seulement.';
+  if (!p.comparee) return `<span class="mut">${echap(p.raison || 'Comparaison non disponible.')}</span>`;
+  const n = x => echap(joli(x)); // B♭3, F♯4…
+  const lignes = [`<b>Fidélité ${p.fidelite} %</b> : ${p.exactes} notes jouées comme écrites${p.octave ? `, ${p.octave} à l'octave` : ''}, sur ${p.ecrites} écrites dans les mesures jouées.`];
+  if (p.remplacees) lignes.push(`Notes jouées à la place des notes écrites : ${p.detailRemplacees.map(x => `mes. ${x.mesure} ${n(x.symbole)} : ${n(x.jouee)} au lieu de ${n(x.ecrite)}`).join(' ; ')}.`);
+  if (p.manquees) lignes.push(`Notes écrites non jouées : ${p.manquees}${p.mesuresManquees.length ? ` (surtout mes. ${p.mesuresManquees.slice(0, 3).map(m => m.mesure).join(', ')})` : ''}.`);
+  if (p.ajouteesAccord || p.ajouteesHors) lignes.push(`Notes ajoutées : ${p.ajouteesAccord} dans l'accord (enrichissements)${p.ajouteesHors ? `, ${p.ajouteesHors} hors accord` : ''}.`);
+  if (p.notesEcritesHorsAccord || p.guidesAbsentesDeLaPartition) lignes.push(`<span class="mut">Non reprochés car écrits ainsi : ${p.notesEcritesHorsAccord} note(s) hors accord, ${p.guidesAbsentesDeLaPartition} note(s) guide(s) absente(s) de la partition.</span>`);
+  return lignes.join('<br>');
 }
 function textePedale(p) {
   if (!p) return '—';
@@ -778,7 +867,9 @@ function textePedale(p) {
   const s = ms => (ms / 1000).toFixed(ms < 10000 ? 1 : 0).replace('.', ',');
   const ligne = `${p.appuis} appui${p.appuis > 1 ? 's' : ''}` +
     (p.appuisParAccord != null ? ` (${String(p.appuisParAccord).replace('.', ',')} par accord joué)` : '') +
-    ` · enfoncée ${p.partEnfoncee} % du temps · appui moyen ${s(p.dureeMoyenneMs)} s · plus long ${s(p.plusLongMs)} s.`;
+    ` · enfoncée ${p.partEnfoncee} % du temps · appui moyen ${s(p.dureeMoyenneMs)} s · plus long ${s(p.plusLongMs)} s.` +
+    (p.attaquesAccord ? `<br>Changements : appui ${p.delaiMedianMs != null ? `${p.delaiMedianMs} ms après l'accord (médiane${p.delaiMedianMs >= 50 && p.delaiMedianMs <= 300 ? ', pédale syncopée' : ''})` : '—'}` +
+      ` · ${p.accordsSuperposes} accord${p.accordsSuperposes > 1 ? 's' : ''} attaqué${p.accordsSuperposes > 1 ? 's' : ''} pédale encore enfoncée · ${p.accordsSansChangement} sans changement de pédale (sur ${p.attaquesAccord}).` : '');
   return p.alerte ? `${ligne}<br><span class="err">⚠ ${echap(p.alerte)}</span>` : ligne;
 }
 function afficherBilanCourt(html) {
@@ -799,7 +890,7 @@ for (const id of ['bandeauBilan', 'bilanPE']) {
   });
 }
 
-function effacerCouleurs() { elMesures.forEach(el => el?.classList.remove('ok', 'moyen', 'pb')); }
+function effacerCouleurs() { elMesures.forEach(el => { el?.classList.remove('ok', 'moyen', 'pb'); el?.querySelector('.taux')?.remove(); }); }
 
 function afficherRapport({ segments, resume: r }) {
   // couleur des mesures dans la grille
@@ -813,6 +904,12 @@ function afficherRapport({ segments, resume: r }) {
     etat[s.mesure] = Math.max(etat[s.mesure] ?? 0, v);
   }
   for (const [m, v] of Object.entries(etat)) elMesures[m - 1]?.classList.add(['ok', 'moyen', 'pb'][v]);
+  for (const m of r.parMesure || []) {
+    const el = elMesures[m.mesure - 1];
+    if (!el) continue;
+    const t = document.createElement('span'); t.className = 'taux'; t.textContent = m.taux + ' %';
+    t.setAttribute('aria-label', `réussite ${m.taux} %`); el.appendChild(t);
+  }
 
   const signe = x => x == null ? '–' : (x > 0 ? '+' : '') + x;
   const ry = r.rythme || {};
@@ -834,13 +931,17 @@ function afficherRapport({ segments, resume: r }) {
     <h3>Harmonie</h3>
     <p style="margin:0">Notes manquantes : ${manques || 'aucune'} · notes de passage : ${r.notesDePassage}</p>
     ${r.detailFausses.length ? `<ul>${r.detailFausses.slice(0, 6).map(f => `<li>mes. ${f.mesure} ${echap(f.symbole)} : ${echap(f.note)} (${echap(f.degre)}, ${f.classe === 'eviter' ? 'note à éviter' : 'hors accord'})</li>`).join('')}</ul>` : ''}
+    <h3>Partition</h3>
+    <p style="margin:0">${textePartition(r.partition)}</p>
     <h3>Pédale</h3>
     <p style="margin:0">${textePedale(r.pedale)}</p>
     <h3>Voicings</h3>
     <p style="margin:0">${lignesVoicings}</p>
+    <h3>Réussite par mesure</h3>
+    ${graphiqueReussite(r)}
     <h3>À travailler</h3>
     ${r.aTravailler.length ? `<ul>${r.aTravailler.map(a => `<li>mes. ${a.mesure} — ${a.raisons.map(echap).join(' ; ')}</li>`).join('')}</ul>` : '<p style="margin:0">Rien de marquant sur cette prise.</p>'}
-    <p class="mut" style="font-size:.78rem;margin-top:8px">Analyse par rapport à la grille d'accords (pas encore aux notes écrites de la partition). Calage appliqué : ${dernierePrise.calageMs} ms.</p>`;
+    <p class="mut" style="font-size:.78rem;margin-top:8px">${r.partition?.comparee ? 'Analyse par rapport à la grille et aux notes écrites de la partition : une note écrite n\'est jamais comptée comme fausse.' : 'Analyse par rapport à la grille d\'accords seulement.'} Calage appliqué : ${dernierePrise.calageMs} ms.</p>`;
 }
 
 $('exporter').onclick = () => {

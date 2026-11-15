@@ -4,8 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15j';
-import { analyserAccord } from '../js/accords.js?v=2026-11-15j';
+import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15l';
+import * as analyserModule from '../js/analyse.js?v=2026-11-15l';
+import { analyserAccord } from '../js/accords.js?v=2026-11-15l';
 
 const charger = (nom) => JSON.parse(readFileSync(new URL(`./prises/${nom}.json`, import.meta.url), 'utf8'));
 const analyser = (nom) => analyserPrise(charger(nom));
@@ -209,4 +210,49 @@ test('pédale : jamais relevée avant la fin de la prise', () => {
   const { pedale } = analyserPrise({ ...p, pedale: [{ t: 500, enfoncee: true }] }).resume;
   assert.equal(pedale.appuis, 1);
   assert.ok(pedale.alerte);
+});
+
+test('pédale syncopée : appui juste après l\'accord, aucun accord superposé', () => {
+  const { pedale } = analyser('pedale').resume; // appui 20 ms après chaque accord, relevée 30 ms avant le suivant
+  assert.ok(pedale.delaiMedianMs >= 0 && pedale.delaiMedianMs <= 50, `délai ${pedale.delaiMedianMs}`);
+  assert.equal(pedale.accordsSuperposes, 0);
+  assert.equal(pedale.accordsSansChangement, 0);
+});
+
+test('pédale non relevée aux changements : accords superposés signalés', () => {
+  const p = charger('pedale');
+  // appuis décalés : enfoncée 300 ms AVANT chaque changement, relevée 300 ms après → chaque accord attaqué pédale enfoncée
+  const ped = p.pedale.map((e, i) => ({ t: e.t + (e.enfoncee ? 1700 : 330), enfoncee: e.enfoncee }));
+  const { pedale } = analyserPrise({ ...p, pedale: ped }).resume;
+  assert.ok(pedale.accordsSuperposes >= 6, `superposés ${pedale.accordsSuperposes}`);
+  assert.match(pedale.alerte, /encore enfoncée/);
+});
+
+// --- Taux de réussite par mesure ------------------------------------------------------
+
+test('réussite par mesure : prise juste = 100 % partout', () => {
+  const { parMesure, plusFaibles, decrochage } = analyser('juste').resume;
+  assert.deepEqual(parMesure.map(m => m.taux), [100, 100, 100, 100]);
+  assert.deepEqual(plusFaibles, []);
+  assert.equal(decrochage, null);
+});
+
+test('réussite par mesure : la mesure fautive est la plus faible', () => {
+  const { parMesure, plusFaibles } = analyser('fausse-note').resume;
+  assert.equal(plusFaibles[0].mesure, 1);
+  assert.ok(parMesure[0].taux < 100 && parMesure[1].taux === 100, JSON.stringify(parMesure));
+  const silence = analyser('accord-non-joue').resume;
+  assert.equal(silence.parMesure.find(m => m.mesure === 3).taux, 0);
+});
+
+test('réussite par mesure : décrochage détecté quand la fin se dégrade', () => {
+  // 8 mesures : 4 réussies puis 4 ratées
+  const { reussiteParMesure } = analyserModule;
+  const segs = Array.from({ length: 8 }, (_, i) => ({
+    mesure: i + 1, symbole: 'C7', nc: false, joue: true, attendues: 2,
+    manquantes: i < 4 ? [] : ['3ce', '7e'], fausses: i < 4 ? [] : [{}], decalageMs: null,
+  }));
+  const r = reussiteParMesure(segs, undefined, false);
+  assert.equal(r.decrochage.aPartirDe, 5);
+  assert.ok(r.decrochage.avant > r.decrochage.apres + 20);
 });
