@@ -95,7 +95,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15g</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15h</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -258,13 +258,13 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15g';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15g';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15g';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15g';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15g';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15g';
-import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15g';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15h';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15h';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15h';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15h';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15h';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15h';
+import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15h';
 
 const $ = id => document.getElementById(id);
 const stock = {

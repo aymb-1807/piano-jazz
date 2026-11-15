@@ -3,7 +3,7 @@
 // Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM → 1 temps = 1000 ms.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15g';
+import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15h';
 
 const T = 1000; // ms par temps
 const dossier = new URL('./prises/', import.meta.url);
@@ -52,13 +52,13 @@ function voicings({ decalage = 0, modifier = (i, v) => v, duree = 2 * T - 50 } =
 
 // Jeu libre (rubato) : durées irrégulières, mélodie en notes isolées entre les accords
 const RUBATO = [1500, 2300, 1800, 3000, 1200, 2600, 2000, 3400]; // ms par accord
-function libre({ sauter = [], modifier = (i, v) => v, jusqua = VOICINGS.length } = {}) {
+function libre({ sauter = [], modifier = (i, v) => v, jusqua = VOICINGS.length, roule = 12 } = {}) {
   const notes = [];
   let t = 0;
   VOICINGS.slice(0, jusqua).forEach(([, v], i) => {
     const d = RUBATO[i];
     if (!sauter.includes(i)) {
-      modifier(i, v).forEach((h, k) => notes.push({ hauteur: h, debut: t + k * 12, fin: t + d - 60, velocite: 68 }));
+      modifier(i, v).forEach((h, k) => notes.push({ hauteur: h, debut: t + k * roule, fin: t + d - 60, velocite: 68 }));
       // une note de mélodie (note de l'accord, à l'octave) au milieu de la durée
       notes.push({ hauteur: v[2] + 12, debut: t + d * 0.5, fin: t + d * 0.5 + 300, velocite: 60 });
     }
@@ -82,6 +82,10 @@ const PRISES = {
 
   'libre-fausse-note': prise('libre-fausse-note', 'Rubato : Bb7 (mes. 2) joué avec un la bécarre (7M) dans le voicing.', {
     notes: libre({ modifier: (i, v) => (i === 3 ? [46, 50, 57] : v) }), mode: 'libre', libre: true,
+  }),
+
+  'libre-arpege': prise('libre-arpege', 'Rubato avec accords roulés (120 ms entre les notes), comme les arpèges de « Play freely ».', {
+    notes: libre({ roule: 120 }), mode: 'libre', libre: true,
   }),
 
   'libre-arrete': prise('libre-arrete', 'Rubato : arrêt après Fm7 (mes. 2, 3e accord).', {
