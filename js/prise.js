@@ -27,7 +27,7 @@ export class Enregistreur {
   constructor() { this.actif = false; }
 
   demarrer(contexte) {
-    this.contexte = contexte;   // { grille: {id, titre, texte, transposition}, tempo, calageMs }
+    this.contexte = contexte;   // { grille: {id, titre, texte, transposition}, tempo, calageMs, mode?, plage? }
     this.temps = [];            // { tour, mesure, temps, decompte, tPerf }
     this.notes = [];            // { hauteur, debut, fin, velocite } en tPerf
     this.ouvertes = new Map();  // hauteur -> note en cours
@@ -63,6 +63,25 @@ export class Enregistreur {
     }
   }
 
+  /** Jeu libre (rubato) : pas de temps de référence ; t = 0 à la première note. */
+  priseLibre() {
+    if (!this.notes.length) return null;
+    const t0 = this.notes[0].debut;
+    const r = (x) => Math.round((x - t0) * 10) / 10;
+    return {
+      format: 'piano-jazz/prise@1',
+      mode: 'libre',
+      date: new Date().toISOString(),
+      grille: this.contexte.grille,
+      plage: this.contexte.plage,
+      tempo: null,
+      calageMs: 0,
+      temps: [],
+      notes: this.notes.map(n => ({ hauteur: n.hauteur, debut: r(n.debut), fin: r(n.fin), velocite: n.velocite })),
+      pedale: this.pedale.map(p => ({ t: r(p.t), enfoncee: p.enfoncee })),
+    };
+  }
+
   fermer(h, t) { const n = this.ouvertes.get(h); if (n) { n.fin = t; this.ouvertes.delete(h); } }
 
   /** Termine et renvoie la prise au format piano-jazz/prise@1, ou null si rien d'exploitable. */
@@ -71,6 +90,7 @@ export class Enregistreur {
     this.actif = false;
     const fin = performance.now();
     for (const h of [...this.ouvertes.keys()]) this.fermer(h, fin);
+    if (this.contexte.mode === 'libre') return this.priseLibre();
     const premier = this.temps.find(b => !b.decompte);
     if (!premier || this.temps.filter(b => !b.decompte).length < 2) return null;
     const t0 = premier.tPerf;
@@ -81,6 +101,7 @@ export class Enregistreur {
       grille: this.contexte.grille,
       tempo: this.contexte.tempo,
       calageMs: this.contexte.calageMs || 0,
+      ...(this.contexte.mode && this.contexte.mode !== 'mesure' ? { mode: this.contexte.mode } : {}),
       temps: this.temps.map(b => ({ tour: b.tour, mesure: b.mesure, temps: b.temps, ...(b.decompte ? { decompte: true } : {}), t: r(b.tPerf) })),
       notes: this.notes.map(n => ({ hauteur: n.hauteur, debut: r(n.debut), fin: r(n.fin), velocite: n.velocite })),
       pedale: this.pedale.map(p => ({ t: r(p.t), enfoncee: p.enfoncee })),

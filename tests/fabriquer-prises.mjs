@@ -3,7 +3,7 @@
 // Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM → 1 temps = 1000 ms.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15f';
+import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15g';
 
 const T = 1000; // ms par temps
 const dossier = new URL('./prises/', import.meta.url);
@@ -24,7 +24,7 @@ function baseTemps() {
   return temps;
 }
 
-function prise(nom, description, { notes, pedale = [], calageMs = 0 }) {
+function prise(nom, description, { notes, pedale = [], calageMs = 0, mode, libre = false }) {
   return {
     format: 'piano-jazz/prise@1',
     description,
@@ -32,7 +32,9 @@ function prise(nom, description, { notes, pedale = [], calageMs = 0 }) {
     grille: { id: 'exercice-exemple', titre: 'Notes guides – Misty mes. 5-8', texte: EXERCICE_EXEMPLE, transposition: 0 },
     tempo: 60,
     calageMs,
-    temps: baseTemps(),
+    ...(mode ? { mode } : {}),
+    ...(libre ? { plage: { debut: 1, fin: 4 } } : {}),
+    temps: libre ? [] : baseTemps(),
     notes: notes.sort((a, b) => a.debut - b.debut || a.hauteur - b.hauteur),
     pedale,
   };
@@ -48,7 +50,44 @@ function voicings({ decalage = 0, modifier = (i, v) => v, duree = 2 * T - 50 } =
   return notes;
 }
 
+// Jeu libre (rubato) : durées irrégulières, mélodie en notes isolées entre les accords
+const RUBATO = [1500, 2300, 1800, 3000, 1200, 2600, 2000, 3400]; // ms par accord
+function libre({ sauter = [], modifier = (i, v) => v, jusqua = VOICINGS.length } = {}) {
+  const notes = [];
+  let t = 0;
+  VOICINGS.slice(0, jusqua).forEach(([, v], i) => {
+    const d = RUBATO[i];
+    if (!sauter.includes(i)) {
+      modifier(i, v).forEach((h, k) => notes.push({ hauteur: h, debut: t + k * 12, fin: t + d - 60, velocite: 68 }));
+      // une note de mélodie (note de l'accord, à l'octave) au milieu de la durée
+      notes.push({ hauteur: v[2] + 12, debut: t + d * 0.5, fin: t + d * 0.5 + 300, velocite: 60 });
+    }
+    t += d;
+  });
+  return notes;
+}
+
 const PRISES = {
+  'accords-seulement': prise('accords-seulement', 'Mode « accords » : attaques 90 ms en retard, mais le rythme n\'est pas jugé.', {
+    notes: voicings({ decalage: 90 }), mode: 'accords',
+  }),
+
+  'libre-juste': prise('libre-juste', 'Rubato : voicings justes à des durées irrégulières, avec une note de mélodie par accord.', {
+    notes: libre(), mode: 'libre', libre: true,
+  }),
+
+  'libre-saut': prise('libre-saut', 'Rubato : Gm7 (mes. 3) sauté, le reste juste.', {
+    notes: libre({ sauter: [4] }), mode: 'libre', libre: true,
+  }),
+
+  'libre-fausse-note': prise('libre-fausse-note', 'Rubato : Bb7 (mes. 2) joué avec un la bécarre (7M) dans le voicing.', {
+    notes: libre({ modifier: (i, v) => (i === 3 ? [46, 50, 57] : v) }), mode: 'libre', libre: true,
+  }),
+
+  'libre-arrete': prise('libre-arrete', 'Rubato : arrêt après Fm7 (mes. 2, 3e accord).', {
+    notes: libre({ jusqua: 3 }), mode: 'libre', libre: true,
+  }),
+
   'juste': prise('juste', 'Voicings F-3-7 exacts, sur le temps, à chaque changement d\'accord.', { notes: voicings() }),
 
   'note-manquante': prise('note-manquante', 'Mesure 2, Fm7 joué sans sa 7e (mi♭) : fa-la♭ seulement.', {

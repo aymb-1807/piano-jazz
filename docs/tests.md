@@ -17,7 +17,7 @@ node tests/fabriquer-prises.mjs
 | Niveau | Quoi | Outil | Quand |
 |---|---|---|---|
 | **Unitaire** (le gros des tests) | Moteur d'analyse sur des prises de référence ; classement des notes ; types de voicing ; calibration | `node --test`, fichiers `tests/prises/*.json` | À chaque modification de `js/analyse.js`, `js/grille.js`, `js/accords.js` |
-| **Intégration navigateur** | Enregistrement pendant la lecture avec un piano simulé (`window.__simulerMidi`), rapport affiché, grille colorée ; calibration | Playwright + Chromium (émulation Pixel 7) | Avant chaque PR qui touche la page ou l'enregistrement |
+| **Intégration navigateur** | Enregistrement pendant la lecture avec un piano simulé (`window.__simulerMidi`, même chemin qu'un vrai piano), rapport affiché, grille colorée ; calibration ; suivi en direct du jeu libre ; mode « accords » avec swing | Playwright + Chromium (émulation Pixel 7) | Avant chaque PR qui touche la page ou l'enregistrement |
 | **Sur l'appareil** | Son, latence réelle, câble USB, rendu au pupitre | Le téléphone, panneau « Diagnostic » | À chaque étape ; c'est le seul niveau qui valide la latence |
 
 ## Prises de référence (`tests/prises/`)
@@ -35,6 +35,11 @@ Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM, voicings F-3-7.
 | `pedale` | Notes staccato tenues par la pédale comptées comme sonnantes (et pas sans pédale) |
 | `calage` | Un retard égal au calage mesuré est « en place » |
 | `accord-non-joue` | Mesure silencieuse signalée en priorité |
+| `accords-seulement` | Mode « accords » : un retard de 90 ms n'est pas jugé |
+| `libre-juste` | Rubato (durées irrégulières, mélodie entre les accords) : les 8 accords sont retrouvés |
+| `libre-saut` | Rubato : un accord sauté est signalé, les suivants restent alignés |
+| `libre-fausse-note` | Rubato : la bécarre dans le voicing de B♭7 détecté |
+| `libre-arrete` | Rubato : arrêt en cours de grille, seuls les accords atteints sont jugés |
 
 ## Ajouter une vraie prise
 

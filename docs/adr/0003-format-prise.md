@@ -37,6 +37,7 @@ Une prise est un **objet JSON autonome** (`format: "piano-jazz/prise@1"`) :
 - **`grille.texte`** : copie de la grille au moment de la prise, pour qu'une prise ancienne reste analysable même si la grille a été modifiée depuis.
 - **`calageMs`** : compensation de latence mesurée par calibration (ADR-0004), **non appliquée** aux données brutes. L'analyse la soustrait, ce qui permet de recalculer si le calage change.
 - Stockage local (IndexedDB) ; export JSON possible pour constituer des prises de référence.
+- **Avenant du 15/11/2026** : champ facultatif `mode` (`mesure` par défaut, `accords`, `libre`). En mode `libre` (rubato), `temps` est vide, `tempo` vaut `null`, `t = 0` à la première note et `plage` (`{debut, fin}`, mesures 1-based) indique la portion de grille jouée. Ajout compatible : pas de changement de version du format.
 
 ## Options envisagées
 

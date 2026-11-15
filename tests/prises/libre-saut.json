@@ -1,0 +1,190 @@
+{
+ "format": "piano-jazz/prise@1",
+ "description": "Rubato : Gm7 (mes. 3) sauté, le reste juste.",
+ "date": "2026-11-15T00:00:00.000Z",
+ "grille": {
+  "id": "exercice-exemple",
+  "titre": "Notes guides – Misty mes. 5-8",
+  "texte": "titre: Notes guides – Misty mes. 5-8\ntype: exercice\nsource: Misty, mesures 5-8\ntonalité: Eb\nmesure: 4/4\ntempo: 56\nboucle: oui\nobjectif: Main gauche seule, 3ce et 7e de chaque accord sur le 1er temps de l'accord, en conduisant les voix au plus proche (pas de saut > 2 demi-tons).\ncritere: notes guides présentes sur 100 % des accords, attaque à ±80 ms du temps\npartition: exemples/notes-guides.musicxml\n\n[II-V]\nEbmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7\n",
+  "transposition": 0
+ },
+ "tempo": 60,
+ "calageMs": 0,
+ "mode": "libre",
+ "plage": {
+  "debut": 1,
+  "fin": 4
+ },
+ "temps": [],
+ "notes": [
+  {
+   "hauteur": 51,
+   "debut": 0,
+   "fin": 1440,
+   "velocite": 68
+  },
+  {
+   "hauteur": 55,
+   "debut": 12,
+   "fin": 1440,
+   "velocite": 68
+  },
+  {
+   "hauteur": 62,
+   "debut": 24,
+   "fin": 1440,
+   "velocite": 68
+  },
+  {
+   "hauteur": 74,
+   "debut": 750,
+   "fin": 1050,
+   "velocite": 60
+  },
+  {
+   "hauteur": 48,
+   "debut": 1500,
+   "fin": 3740,
+   "velocite": 68
+  },
+  {
+   "hauteur": 51,
+   "debut": 1512,
+   "fin": 3740,
+   "velocite": 68
+  },
+  {
+   "hauteur": 58,
+   "debut": 1524,
+   "fin": 3740,
+   "velocite": 68
+  },
+  {
+   "hauteur": 70,
+   "debut": 2650,
+   "fin": 2950,
+   "velocite": 60
+  },
+  {
+   "hauteur": 53,
+   "debut": 3800,
+   "fin": 5540,
+   "velocite": 68
+  },
+  {
+   "hauteur": 56,
+   "debut": 3812,
+   "fin": 5540,
+   "velocite": 68
+  },
+  {
+   "hauteur": 63,
+   "debut": 3824,
+   "fin": 5540,
+   "velocite": 68
+  },
+  {
+   "hauteur": 75,
+   "debut": 4700,
+   "fin": 5000,
+   "velocite": 60
+  },
+  {
+   "hauteur": 46,
+   "debut": 5600,
+   "fin": 8540,
+   "velocite": 68
+  },
+  {
+   "hauteur": 50,
+   "debut": 5612,
+   "fin": 8540,
+   "velocite": 68
+  },
+  {
+   "hauteur": 56,
+   "debut": 5624,
+   "fin": 8540,
+   "velocite": 68
+  },
+  {
+   "hauteur": 68,
+   "debut": 7100,
+   "fin": 7400,
+   "velocite": 60
+  },
+  {
+   "hauteur": 48,
+   "debut": 9800,
+   "fin": 12340,
+   "velocite": 68
+  },
+  {
+   "hauteur": 52,
+   "debut": 9812,
+   "fin": 12340,
+   "velocite": 68
+  },
+  {
+   "hauteur": 58,
+   "debut": 9824,
+   "fin": 12340,
+   "velocite": 68
+  },
+  {
+   "hauteur": 70,
+   "debut": 11100,
+   "fin": 11400,
+   "velocite": 60
+  },
+  {
+   "hauteur": 53,
+   "debut": 12400,
+   "fin": 14340,
+   "velocite": 68
+  },
+  {
+   "hauteur": 56,
+   "debut": 12412,
+   "fin": 14340,
+   "velocite": 68
+  },
+  {
+   "hauteur": 63,
+   "debut": 12424,
+   "fin": 14340,
+   "velocite": 68
+  },
+  {
+   "hauteur": 75,
+   "debut": 13400,
+   "fin": 13700,
+   "velocite": 60
+  },
+  {
+   "hauteur": 46,
+   "debut": 14400,
+   "fin": 17740,
+   "velocite": 68
+  },
+  {
+   "hauteur": 50,
+   "debut": 14412,
+   "fin": 17740,
+   "velocite": 68
+  },
+  {
+   "hauteur": 56,
+   "debut": 14424,
+   "fin": 17740,
+   "velocite": 68
+  },
+  {
+   "hauteur": 68,
+   "debut": 16100,
+   "fin": 16400,
+   "velocite": 60
+  }
+ ],
+ "pedale": []
+}

@@ -95,7 +95,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15f</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15g</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -122,6 +122,15 @@
     <div id="decompte"></div>
   </div>
   <button class="prim" id="jouer" style="width:100%;margin-top:10px">▶ Jouer</button>
+  <div class="row" style="margin-top:8px">
+    <label class="mut" for="modeJeu" style="font-size:.85rem">Jeu</label>
+    <select id="modeJeu" class="grow" aria-label="Mode de jeu">
+      <option value="mesure">En mesure – tout analyser</option>
+      <option value="accords">En mesure – accords seulement (rythme libre)</option>
+      <option value="libre">Libre, sans tempo (rubato) – accords seulement</option>
+    </select>
+  </div>
+  <div class="mut" id="aideModeJeu" style="font-size:.8rem;margin-top:4px"></div>
   <div id="bandeauBilan" role="status"></div>
 </div>
 
@@ -196,7 +205,7 @@
 
 <div class="card reglages">
   <label>Accompagnement
-    <select id="mode"><option value="accomp">Basse + balais</option><option value="metro">Métronome seul</option></select>
+    <select id="mode"><option value="accomp">Basse + balais (ballade)</option><option value="swing">Basse + ride (swing)</option><option value="metro">Métronome seul</option></select>
   </label>
   <label>Basse
     <select id="basse"><option value="deux">2 temps (ballade)</option><option value="walking">Walking</option></select>
@@ -249,12 +258,13 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15f';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15f';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15f';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15f';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15f';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15f';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15g';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15g';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15g';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15g';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15g';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15g';
+import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15g';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -408,15 +418,17 @@ acc.surTemps = e => {
   afficherAccord(e.mesure, e.temps);
   placerCurseur(e.mesure, e.temps); // filet de sécurité : au moins une fois par temps
   [...$('temps').children].forEach((el, i) => el.classList.toggle('on', i === e.temps));
-  if (derniereCour) derniereCour.classList.remove('cour');
-  const el = elMesures[e.mesure];
-  if (el) {
-    el.classList.add('cour'); derniereCour = el;
-    el.querySelectorAll('.ch').forEach(c => c.classList.toggle('cour', +c.dataset.k === grille.mesures[e.mesure].accords.indexOf(accordA(grille, e.mesure, e.temps))));
-    // sans partition, la grille suit la lecture ; avec partition, c'est la partition qui défile (pas de balancier)
-    if (e.temps === 0 && !partitionPrete) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
+  surlignerMesure(e.mesure, e.temps);
 };
+function surlignerMesure(mesure, temps) {
+  if (derniereCour) derniereCour.classList.remove('cour');
+  const el = elMesures[mesure];
+  if (!el) return;
+  el.classList.add('cour'); derniereCour = el;
+  el.querySelectorAll('.ch').forEach(c => c.classList.toggle('cour', +c.dataset.k === grille.mesures[mesure].accords.indexOf(accordA(grille, mesure, temps))));
+  // sans partition, la grille suit la lecture ; avec partition, c'est la partition qui défile (pas de balancier)
+  if (temps === 0 && !partitionPrete) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
 acc.surImage = (mesure, temps) => placerCurseur(mesure, temps);
 let erreurCurseur = false;
 const diag = { image: 0, temps: 0, dernier: '-' };
@@ -443,15 +455,19 @@ function finLecture() {
 
 // --- Lecture ---------------------------------------------------------------
 $('jouer').onclick = async () => {
+  if (libreEnCours) { arreterLibre(); return; }
   if (acc.enCours) { acc.arreter(); finLecture(); majBouton(); terminerPrise(); return; }
   if (!grille) return;
   const [d, f] = plage || [1, grille.mesures.length];
+  const modeJeu = $('modeJeu').value;
+  if (modeJeu === 'libre') { demarrerLibre(d, f); return; }
   if ($('enregistrer').checked && midiConnecte) {
     effacerCouleurs();
     enr.demarrer({
       grille: { id: idCourant, titre: grille.meta.titre, texte: texteDe(idCourant), transposition: grille.meta.transposition || 0 },
       tempo: acc.reglages.tempo,
       calageMs: stock.lire('calageMs', 0),
+      mode: modeJeu,
     });
   }
   masquerBilanCourt();
@@ -461,7 +477,35 @@ $('jouer').onclick = async () => {
   garderEcran();
   majBouton();
 };
-function majBouton() { $('jouer').textContent = $('jouerPE').textContent = acc.enCours ? '■ Arrêter' : '▶ Jouer'; }
+function majBouton() { $('jouer').textContent = $('jouerPE').textContent = (acc.enCours || libreEnCours) ? '■ Arrêter' : '▶ Jouer'; }
+
+// --- Jeu libre (rubato) : pas d'accompagnement, l'appli suit les accords joués ---------
+let libreEnCours = false, suiveur = null;
+function demarrerLibre(d, f) {
+  if (!midiConnecte) { afficherBilanCourt('<span class="err">Le jeu libre a besoin du piano : appuie sur « Connecter le piano » (carte Prise).</span>'); return; }
+  effacerCouleurs(); masquerBilanCourt();
+  suiveur = new SuiveurHarmonique(grille, d, f);
+  if (!suiveur.suite.length) { afficherBilanCourt('<span class="err">Aucun accord dans cette plage de mesures.</span>'); return; }
+  suiveur.surChangement = el => montrerPositionLibre(el);
+  enr.demarrer({
+    grille: { id: idCourant, titre: grille.meta.titre, texte: texteDe(idCourant), transposition: grille.meta.transposition || 0 },
+    tempo: null, calageMs: 0, mode: 'libre', plage: { debut: d, fin: f },
+  });
+  libreEnCours = true;
+  montrerPositionLibre(suiveur.courant);
+  $('temps').querySelectorAll('i').forEach(i => i.classList.remove('on'));
+  majVoyant(); majBouton(); garderEcran();
+}
+function montrerPositionLibre(el) {
+  afficherAccord(el.mesure, el.temps);
+  surlignerMesure(el.mesure, el.temps);
+  placerCurseur(el.mesure, el.temps);
+}
+function arreterLibre() {
+  libreEnCours = false;
+  suiveur?.arreter();
+  finLecture(); majBouton(); terminerPrise();
+}
 
 // Écran allumé pendant la lecture
 let verrou = null;
@@ -572,6 +616,21 @@ function zoomer(f) {
   stock.ecrire('zoomPartition', z);
   vue.regler(z);
 }
+// --- Mode de jeu ---------------------------------------------------------------------
+const AIDES = {
+  mesure: 'Accompagnement et analyse complète (accords et placement rythmique).',
+  accords: 'Accompagnement au tempo choisi, tu joues tes propres rythmes : seuls les accords sont jugés.',
+  libre: 'Pas d\'accompagnement ni de tempo : joue à ton rythme, l\'appli suit tes accords plaqués dans la grille. Piano connecté nécessaire.',
+};
+$('modeJeu').value = stock.lire('modeJeu', 'mesure');
+const majAideMode = () => { $('aideModeJeu').textContent = AIDES[$('modeJeu').value]; };
+majAideMode();
+$('modeJeu').onchange = () => { stock.ecrire('modeJeu', $('modeJeu').value); majAideMode(); };
+// le swing appelle une walking bass
+$('mode').addEventListener('change', () => {
+  if ($('mode').value === 'swing' && $('basse').value !== 'walking') { $('basse').value = 'walking'; $('basse').dispatchEvent(new Event('input')); }
+});
+
 // --- Plein écran ------------------------------------------------------------------
 const zonePE = $('zonePartition');
 async function entrerPleinEcran() {
@@ -633,7 +692,7 @@ setInterval(() => {
 const midi = new EntreeMidi();
 const enr = new Enregistreur();
 let midiConnecte = false, calibrationEnCours = false, reglagesAvantCalage = null, dernierePrise = null;
-midi.ecouter((data, t) => enr.surMidi(data, t));
+midi.ecouter((data, t) => { enr.surMidi(data, t); if (libreEnCours) suiveur?.surMidi(data, t); });
 midi.surEtat = noms => {
   midiConnecte = noms.length > 0;
   $('etatMidi').innerHTML = midiConnecte
@@ -701,14 +760,14 @@ function majVoyant() {
   $('recPE').classList.toggle('on', on);
 }
 function resumeCourt(r) {
-  const ry = r.rythme;
+  const ry = r.rythme || {};
   const travail = r.aTravailler.slice(0, 2).map(a => `<li>mes. ${a.mesure} — ${echap(a.raisons[0])}</li>`).join('');
   return `<b>Bilan de la prise</b>
     <div class="chiffres">
       <div class="chiffre"><b>${r.accordsJoues}/${r.accords}</b><span>accords joués</span></div>
       <div class="chiffre"><b>${r.notesGuidesCompletes ?? '–'} %</b><span>notes guides</span></div>
       <div class="chiffre"><b>${r.faussesNotes}</b><span>${r.faussesNotes > 1 ? 'fausses notes' : 'fausse note'}</span></div>
-      <div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place</span></div>
+      ${r.rythme ? `<div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place</span></div>` : `<div class="chiffre"><b>—</b><span>${r.libre ? 'jeu libre' : 'rythme libre'}</span></div>`}
     </div>
     ${travail ? `<div>À travailler :</div><ul style="margin:2px 0 0;padding-left:18px">${travail}</ul>` : '<div>Rien de marquant sur cette prise.</div>'}`;
 }
@@ -746,7 +805,7 @@ function afficherRapport({ segments, resume: r }) {
   for (const [m, v] of Object.entries(etat)) elMesures[m - 1]?.classList.add(['ok', 'moyen', 'pb'][v]);
 
   const signe = x => x == null ? '–' : (x > 0 ? '+' : '') + x;
-  const ry = r.rythme;
+  const ry = r.rythme || {};
   const tendance = ry.decalageMoyenMs == null ? '' : Math.abs(ry.decalageMoyenMs) <= 20 ? 'centré' : ry.decalageMoyenMs > 0 ? 'en retard' : 'en avance';
   const lignesVoicings = Object.entries(r.voicings).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${echap(t)} ×${n}`).join(' · ') || '—';
   const manques = Object.entries(r.manquesParType).map(([t, n]) => `${t} ×${n}`).join(', ');
@@ -756,10 +815,12 @@ function afficherRapport({ segments, resume: r }) {
       <div class="chiffre"><b>${r.accordsJoues}/${r.accords}</b><span>accords joués</span></div>
       <div class="chiffre"><b>${r.notesGuidesCompletes ?? '–'} %</b><span>notes guides complètes</span></div>
       <div class="chiffre"><b>${r.faussesNotes}</b><span>${r.faussesNotes > 1 ? 'fausses notes' : 'fausse note'}</span></div>
-      <div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place (±60 ms)</span></div>
+      ${r.rythme ? `<div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place (±60 ms)</span></div>` : `<div class="chiffre"><b>—</b><span>rythme non jugé</span></div>`}
     </div>
     <h3>Rythme</h3>
-    <p style="margin:0">${ry.attaquesMesurees} attaques d'accord mesurées · décalage moyen ${signe(ry.decalageMoyenMs)} ms (${tendance}) · régularité ±${ry.ecartTypeMs ?? '–'} ms</p>
+    <p style="margin:0">${r.rythme ? `${ry.attaquesMesurees} attaques d'accord mesurées · décalage moyen ${signe(ry.decalageMoyenMs)} ms (${tendance}) · régularité ±${ry.ecartTypeMs ?? '–'} ms`
+      : r.libre ? `Jeu libre (rubato) : rythme non jugé. Accords atteints : ${r.accords} sur ${r.accordsGrille}${r.arreteMesure ? `, arrêt à la mesure ${r.arreteMesure}` : ''}. La position dans la grille est déduite des accords joués.`
+      : 'Rythme libre : seuls les accords sont jugés.'}</p>
     <h3>Harmonie</h3>
     <p style="margin:0">Notes manquantes : ${manques || 'aucune'} · notes de passage : ${r.notesDePassage}</p>
     ${r.detailFausses.length ? `<ul>${r.detailFausses.slice(0, 6).map(f => `<li>mes. ${f.mesure} ${echap(f.symbole)} : ${echap(f.note)} (${echap(f.degre)}, ${f.classe === 'eviter' ? 'note à éviter' : 'hors accord'})</li>`).join('')}</ul>` : ''}
@@ -779,7 +840,7 @@ $('exporter').onclick = () => {
 };
 
 // Simulation MIDI pour les tests automatisés (aucun effet en usage normal)
-window.__simulerMidi = (data, t = performance.now()) => enr.surMidi(data, t);
+window.__simulerMidi = (data, t = performance.now()) => midi.ecouteurs.forEach(f => f(data, t)); // même chemin qu'un vrai piano
 window.__forcerMidi = () => midi.surEtat(['piano simulé']);
 
 remplirChoix();
