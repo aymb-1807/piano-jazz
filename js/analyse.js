@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15d';
-import { NOMS } from './accords.js?v=2026-11-15d';
+import { lireGrille } from './grille.js?v=2026-11-15e';
+import { NOMS } from './accords.js?v=2026-11-15e';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant

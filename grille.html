@@ -68,6 +68,13 @@
   #partition{background:#fbf8f1;border-radius:8px;max-height:62vh;overflow:auto;display:none;margin-top:8px}
   #partition.on{display:block}
   #partition{position:relative}
+  #barrePE{display:none}
+  #zonePartition.plein{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;padding:8px;gap:8px}
+  #zonePartition.plein #barrePE{display:flex;align-items:center;gap:8px}
+  #zonePartition.plein #partition{flex:1;max-height:none;margin:0}
+  #barrePE .acc{font-size:1.6rem;font-weight:700;color:var(--acc);min-width:4ch}
+  #barrePE .pos{color:var(--mut);font-size:.9rem}
+  #barrePE button{padding:12px 16px;font-size:1rem}
   #partition img[id^="cursorImg"]{z-index:5;pointer-events:none} /* curseur toujours au-dessus de la partition */
   .fichier{display:inline-block;background:var(--card2);border:1px solid #3a3f49;border-radius:10px;padding:10px 14px;font-size:.95rem;cursor:pointer}
   #partiInfo{font-size:.8rem;margin-top:6px;line-height:1.4}
@@ -77,7 +84,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15d</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15e</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -111,9 +118,20 @@
     <div class="row" id="zoomBtns" style="display:none">
       <button id="zMoins" aria-label="Réduire la partition">A−</button>
       <button id="zPlus" aria-label="Agrandir la partition">A+</button>
+      <button id="pleinEcran" aria-label="Partition en plein écran">⛶ Plein écran</button>
     </div>
   </div>
-  <div id="partition"></div>
+  <div id="zonePartition">
+    <div id="barrePE">
+      <button class="prim" id="jouerPE" style="padding:12px 18px">▶ Jouer</button>
+      <span class="acc" id="accordPE">–</span>
+      <span class="pos grow" id="positionPE"></span>
+      <button id="zMoinsPE" aria-label="Réduire">A−</button>
+      <button id="zPlusPE" aria-label="Agrandir">A+</button>
+      <button id="quitterPE" aria-label="Quitter le plein écran">✕</button>
+    </div>
+    <div id="partition"></div>
+  </div>
   <div class="mut" id="partiInfo">Aucune partition. Importe un fichier MusicXML (.musicxml, .mxl) : il reste sur cet appareil.</div>
   <div class="row" style="margin-top:8px">
     <label class="fichier">Importer une partition…<input type="file" id="fichierParti" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml" hidden></label>
@@ -216,12 +234,12 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15d';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15d';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15d';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15d';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15d';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15d';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15e';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15e';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15e';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15e';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15e';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15e';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -358,6 +376,8 @@ function afficherAccord(iMesure, temps) {
   }
   $('suivant').textContent = suiv ? 'puis ' + joli(suiv.symbole) : '';
   $('position').textContent = `mes. ${iMesure + 1} · ${grille.mesures[iMesure].section || ''}`;
+  $('accordPE').textContent = $('accord').textContent;
+  $('positionPE').textContent = `mes. ${iMesure + 1}` + (suiv ? ' · puis ' + joli(suiv.symbole) : '');
 }
 
 acc.surTemps = e => {
@@ -378,7 +398,8 @@ acc.surTemps = e => {
   if (el) {
     el.classList.add('cour'); derniereCour = el;
     el.querySelectorAll('.ch').forEach(c => c.classList.toggle('cour', +c.dataset.k === grille.mesures[e.mesure].accords.indexOf(accordA(grille, e.mesure, e.temps))));
-    if (e.temps === 0) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // sans partition, la grille suit la lecture ; avec partition, c'est la partition qui défile (pas de balancier)
+    if (e.temps === 0 && !partitionPrete) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 };
 acc.surImage = (mesure, temps) => placerCurseur(mesure, temps);
@@ -423,7 +444,7 @@ $('jouer').onclick = async () => {
   garderEcran();
   majBouton();
 };
-function majBouton() { $('jouer').textContent = acc.enCours ? '■ Arrêter' : '▶ Jouer'; }
+function majBouton() { $('jouer').textContent = $('jouerPE').textContent = acc.enCours ? '■ Arrêter' : '▶ Jouer'; }
 
 // Écran allumé pendant la lecture
 let verrou = null;
@@ -534,6 +555,33 @@ function zoomer(f) {
   stock.ecrire('zoomPartition', z);
   vue.regler(z);
 }
+// --- Plein écran ------------------------------------------------------------------
+const zonePE = $('zonePartition');
+async function entrerPleinEcran() {
+  zonePE.classList.add('plein');            // repli CSS si l'API plein écran est refusée
+  try { await zonePE.requestFullscreen?.({ navigationUI: 'hide' }); } catch {}
+  try { await screen.orientation?.lock?.('landscape'); } catch {} // souvent refusé : sans importance
+  apresRedimensionnement();
+}
+async function quitterPleinEcran() {
+  zonePE.classList.remove('plein');
+  try { screen.orientation?.unlock?.(); } catch {}
+  if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch {} }
+  apresRedimensionnement();
+}
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && zonePE.classList.contains('plein')) quitterPleinEcran(); // bouton retour Android
+});
+function apresRedimensionnement() {
+  // OSMD redessine au redimensionnement : on replace le curseur et la vue
+  setTimeout(() => { try { vue.osmd?.cursor?.update(); vue.dernierDefilement = -1; vue.suivre(); } catch {} }, 350);
+}
+$('pleinEcran').onclick = entrerPleinEcran;
+$('quitterPE').onclick = quitterPleinEcran;
+$('jouerPE').onclick = () => $('jouer').click();
+$('zMoinsPE').onclick = () => zoomer(1 / 1.15);
+$('zPlusPE').onclick = () => zoomer(1.15);
+
 $('zMoins').onclick = () => zoomer(1 / 1.15);
 $('zPlus').onclick = () => zoomer(1.15);
 
