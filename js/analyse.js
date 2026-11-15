@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15j';
-import { NOMS } from './accords.js?v=2026-11-15j';
+import { lireGrille } from './grille.js?v=2026-11-15k';
+import { NOMS } from './accords.js?v=2026-11-15k';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant
@@ -104,10 +104,10 @@ function ecartType(v) {
  * @param prise  objet au format piano-jazz/prise@1
  * @param seuils surcharge éventuelle des SEUILS
  */
-export function analyserPrise(prise, seuils = {}) {
+export function analyserPrise(prise, seuils = {}, { partition = null } = {}) {
   const S = { ...SEUILS, ...seuils };
   if (prise.format !== 'piano-jazz/prise@1') throw new Error('format de prise inconnu : ' + prise.format);
-  if (prise.mode === 'libre') return analyserPriseLibre(prise, S);
+  if (prise.mode === 'libre') return analyserPriseLibre(prise, S, partition);
   const rythme = prise.mode !== 'accords'; // « accords » : tempo de l'accompagnement, rythme non jugé
   const grille = lireGrille(prise.grille.texte, { transposition: prise.grille.transposition || 0 });
   const cal = prise.calageMs || 0;
@@ -176,6 +176,14 @@ export function analyserPrise(prise, seuils = {}) {
     return segments.find(s => i >= s.iDebut && i <= s.iFin) || null;
   };
 
+  const cmp = preparerComparaison(grille, partition);
+  const ecritesDe = (s, liste) => {
+    if (!cmp.ok) return null;
+    const j = liste.indexOf(s);
+    const suiv = liste.slice(j + 1).find(x => x.tour === s.tour);
+    return cmp.entre(s.mesure, s.temps, suiv ? suiv.mesure : null, suiv ? suiv.temps : null);
+  };
+
   const rapportSegments = segments.map(s => {
     const dt = s.dureeTemps;
     const attaquees = notes.filter(n => segmentDe(n) === s);
@@ -183,11 +191,12 @@ export function analyserPrise(prise, seuils = {}) {
     const r = { tour: s.tour, mesure: s.mesure + 1, temps: s.temps + 1, symbole: s.accord.symbole, nc: !!s.accord.nc };
     if (s.accord.nc) return { ...r, joue: attaquees.length > 0, notes: attaquees.length };
 
+    const ecrites = ecritesDe(s, segments);
     const h = harmonie(s.accord, attaquees, sonnantes, n => {
       const pos = positionA(n.debut);
       const surTemps = Math.abs(pos - Math.round(pos)) <= S.surLeTemps;
       return n.attaque.notes.length >= 2 || (surTemps && (n.fin - n.debut) >= S.tenue * dt);
-    }, n => +(posDansMesure(positionA(n.debut)) + 1).toFixed(2));
+    }, n => +(posDansMesure(positionA(n.debut)) + 1).toFixed(2), ecrites);
 
     // Placement de l'attaque d'accord
     const aAccord = rythme && attaques.find(a => a.notes.length >= 2 && Math.abs(a.debut - s.debut) <= 0.5 * dt && segmentDe(a.notes[0]) === s);
@@ -201,27 +210,33 @@ export function analyserPrise(prise, seuils = {}) {
     }
   });
 
-  return { segments: rapportSegments, resume: resumer(rapportSegments, S, prise, { rythme }) };
+  return { segments: rapportSegments, resume: resumer(rapportSegments, S, prise, { rythme, comparaison: cmp }) };
 }
 
 /** Analyse harmonique d'un segment, commune aux trois modes. */
-function harmonie(acc, attaquees, sonnantes, estStructurelle, position) {
+function harmonie(acc, attaquees, sonnantes, estStructurelle, position, ecrites = null) {
   const pcs = new Set(sonnantes.map(n => ((n.hauteur % 12) + 12) % 12));
+  const pcsEcrites = ecrites ? new Set(ecrites.map(e => ((e.hauteur % 12) + 12) % 12)) : null;
   const iv = acc.intervalles;
   const tierce = iv.find(i => i === 3 || i === 4 || i === 5);
   const septieme = iv.find(i => i === 9 || i === 10 || i === 11);
   const attendues = [];
   if (tierce != null) attendues.push({ nom: acc.qualite.includes('sus') ? '4te' : '3ce', pc: (acc.fondamentale + tierce) % 12 });
   if (septieme != null) attendues.push({ nom: septieme === 9 ? (acc.qualite === 'dim7' ? '7e' : '6te') : '7e', pc: (acc.fondamentale + septieme) % 12 });
-  const manquantes = attendues.filter(x => !pcs.has(x.pc)).map(x => x.nom);
+  // une note guide absente de la partition elle-même n'est pas reprochée (choix de l'arrangeur)
+  const absentes = attendues.filter(x => !pcs.has(x.pc));
+  const manquantes = absentes.filter(x => !pcsEcrites || pcsEcrites.has(x.pc)).map(x => x.nom);
+  const manquantesEcrites = absentes.filter(x => pcsEcrites && !pcsEcrites.has(x.pc)).map(x => x.nom);
 
   const fausses = [], passage = [], tensions = new Set();
+  let ecritesHors = 0;
   for (const n of attaquees) {
     const c = classerNote(acc, n.hauteur);
     const ivn = ((n.hauteur % 12) + 12 - acc.fondamentale) % 12;
     if (c === 'tension') tensions.add(degre(acc, ivn));
     if (c !== 'hors' && c !== 'eviter') continue;
     const info = { note: nomNote(n.hauteur), hauteur: n.hauteur, degre: degre(acc, ivn), classe: c, tempsDansMesure: position(n) };
+    if (pcsEcrites && pcsEcrites.has(((n.hauteur % 12) + 12) % 12)) { ecritesHors++; continue; } // écrite : pas une faute
     (estStructurelle(n) ? fausses : passage).push(info);
   }
 
@@ -238,6 +253,7 @@ function harmonie(acc, attaquees, sonnantes, estStructurelle, position) {
     notesJouees: [...pcs].map(pc => NOMS[pc]),
     fondamentale: pcs.has(acc.fondamentale),
     manquantes,
+    ...(ecrites ? { manquantesEcrites, notesEcritesHorsAccord: ecritesHors, partition: comparerNotes(acc, attaquees, ecrites) } : {}),
     tensions: [...tensions],
     fausses,
     passage: passage.length,
@@ -282,8 +298,9 @@ export function scoreHarmonique(accord, hauteurs, basse = null) {
   return sc;
 }
 
-function analyserPriseLibre(prise, S) {
+function analyserPriseLibre(prise, S, partition = null) {
   const grille = lireGrille(prise.grille.texte, { transposition: prise.grille.transposition || 0 });
+  const cmp = preparerComparaison(grille, partition);
   const [d, f] = prise.plage ? [prise.plage.debut, prise.plage.fin] : [1, grille.mesures.length];
   const suite = suiteAccords(grille, d, f);
   if (!suite.length) throw new Error('aucun accord dans la grille');
@@ -350,17 +367,20 @@ function analyserPriseLibre(prise, S) {
     const sonnantes = [...new Set(fw.flatMap(x => x.sonnantes))];
     const r = { tour: 0, mesure: s.mesure + 1, temps: s.temps + 1, symbole: s.accord.symbole, nc: false };
     if (!fw.length) return { ...r, joue: false, notesJouees: [], fondamentale: false, manquantes: [], tensions: [], fausses: [], passage: 0, voicings: [], decalageMs: null };
-    const h = harmonie(s.accord, attaquees, sonnantes, n => n.attaque.notes.length >= 2 || (n.fin - n.debut) >= S.tenueLibreMs, () => null);
+    const suiv = suite[idx + 1];
+    const debutM = idx === 0 ? d - 1 : s.mesure, debutT = idx === 0 ? 0 : s.temps; // levée (N.C.) rattachée au 1er accord
+    const ecrites = cmp.ok ? cmp.entre(debutM, debutT, suiv ? suiv.mesure : null, suiv ? suiv.temps : null) : null;
+    const h = harmonie(s.accord, attaquees, sonnantes, n => n.attaque.notes.length >= 2 || (n.fin - n.debut) >= S.tenueLibreMs, () => null, ecrites);
     return { ...r, ...h, decalageMs: null };
   });
-  const resume = resumer(segments, S, prise, { rythme: false });
+  const resume = resumer(segments, S, prise, { rythme: false, comparaison: cmp });
   resume.libre = true;
   resume.accordsGrille = suite.length;
   resume.arreteMesure = segments.at(-1)?.mesure ?? null;
   return { segments, resume };
 }
 
-function resumer(segs, S, prise, { rythme = true } = {}) {
+function resumer(segs, S, prise, { rythme = true, comparaison = null } = {}) {
   const harmo = segs.filter(s => !s.nc);
   const joues = harmo.filter(s => s.joue);
   const avecGuides = joues.filter(s => s.manquantes.length === 0);
@@ -378,6 +398,8 @@ function resumer(segs, S, prise, { rythme = true } = {}) {
     const p = (parMesure[k] ??= { mesure: k, score: 0, raisons: new Set() });
     if (!s.joue) { p.score += 2; p.raisons.add('accord non joué'); continue; }
     if (s.manquantes.length) { p.score += s.manquantes.length; p.raisons.add(`${s.symbole} : ${s.manquantes.join(' et ')} manquante${s.manquantes.length > 1 ? 's' : ''}`); }
+    if (s.partition?.remplacees.length) { p.score += 2 * s.partition.remplacees.length; p.raisons.add(`${s.symbole} : ${s.partition.remplacees.map(x => `${x.jouee.replace(/\d+$/, '')} au lieu de ${x.ecrite.replace(/\d+$/, '')}`).join(', ')}`); }
+    if (s.partition?.manquees.length >= 2) { p.score += 1; p.raisons.add(`${s.symbole} : ${s.partition.manquees.length} notes de la partition non jouées`); }
     if (s.fausses.length) { p.score += 2 * s.fausses.length; p.raisons.add(`${s.symbole} : ${s.fausses.map(f => f.note.replace(/\d+$/, '')).join(', ')} hors accord`); }
     if (rythme && s.decalageMs != null && Math.abs(s.decalageMs) > 2 * S.enPlaceMs) { p.score += 1; p.raisons.add(`${s.symbole} : attaque ${s.decalageMs > 0 ? 'en retard' : 'en avance'} de ${Math.abs(s.decalageMs)} ms`); }
   }
@@ -407,6 +429,7 @@ function resumer(segs, S, prise, { rythme = true } = {}) {
     },
     aTravailler,
     pedale: statsPedale(prise, segs, S),
+    partition: resumerPartition(segs, comparaison),
   };
 }
 
@@ -431,7 +454,29 @@ export function statsPedale(prise, segs, S = SEUILS) {
   const total = dans.reduce((x, [a, b]) => x + (b - a), 0);
   const plusLong = dans.reduce((x, [a, b]) => Math.max(x, b - a), 0);
   const accords = segs.filter(s => !s.nc && s.joue).length;
+
+  // Placement des changements par rapport aux attaques d'accord (≥ 2 notes, roulées comprises)
+  const tri = notes.filter(n => (n.velocite ?? 64) >= S.velociteMin).slice().sort((a, b) => a.debut - b.debut);
+  const attaquesAcc = [];
+  for (const n of tri) {
+    const a = attaquesAcc.at(-1);
+    if (a && n.debut - a.derniere <= S.attaqueLibreMs) { a.n++; a.derniere = n.debut; }
+    else attaquesAcc.push({ t: n.debut, derniere: n.debut, n: 1 });
+  }
+  const accs = attaquesAcc.filter(a => a.n >= 2).map(a => a.t);
+  const enfonceeA = (t) => { let e = false; for (const x of ev) { if (x.t > t) break; e = x.enfoncee; } return e; };
+  const pressions = ev.filter(e => e.enfoncee).map(e => e.t);
+  const delais = pressions.map(t => { const a = accs.filter(x => x <= t + 50).at(-1); return a == null ? null : t - a; })
+    .filter(d => d != null && d >= -50 && d <= 2000);
+  const triD = delais.slice().sort((a, b) => a - b);
+  // accord attaqué alors que la pédale tient encore l'accord précédent (pédale non relevée au changement)
+  const superposes = dans.length ? accs.slice(1).filter(t => enfonceeA(t - 30) && enfonceeA(t + 30)).length : 0;
+  const sansChangement = dans.length ? accs.filter((t, i) => !pressions.some(p => p >= t - 100 && p < (accs[i + 1] ?? Infinity))).length : 0;
   let alerte = null;
+  if (!(plusLong >= S.pedaleLongueMs) && accs.length >= 4 && superposes / Math.max(1, accs.length - 1) >= 0.3) {
+    alerte = `${superposes} accords sur ${accs.length} attaqués avec la pédale encore enfoncée : l'accord précédent se mêle au nouveau. ` +
+      `Relève la pédale au moment où tu joues l'accord, puis renfonce-la juste après.`;
+  }
   if (plusLong >= S.pedaleLongueMs) {
     alerte = `Pédale enfoncée ${Math.round(plusLong / 1000)} s d'affilée : les accords se mélangent. ` +
       `Relève-la à chaque changement d'accord ; si tu l'as bien relevée, ton piano transmet mal la pédale (signale-le).`;
@@ -443,6 +488,10 @@ export function statsPedale(prise, segs, S = SEUILS) {
     plusLongMs: Math.round(plusLong),
     dureeMoyenneMs: dans.length ? Math.round(total / dans.length) : 0,
     appuisParAccord: accords ? Math.round(100 * dans.length / accords) / 100 : null,
+    attaquesAccord: accs.length,
+    delaiMedianMs: triD.length ? Math.round(triD[triD.length >> 1]) : null, // appui après l'accord (pédale syncopée : 50-300 ms)
+    accordsSuperposes: superposes,   // accords attaqués pédale encore enfoncée depuis l'accord précédent
+    accordsSansChangement: sansChangement,
     alerte,
   };
 }
@@ -456,4 +505,84 @@ export function calculerCalage(temps, debutsNotes) {
     return best;
   }).filter(e => Number.isFinite(e) && Math.abs(e) < 300);
   return { calageMs: ecarts.length >= 4 ? Math.round(mediane(ecarts)) : null, ecarts, dispersionMs: ecartType(ecarts) };
+}
+
+// --- Comparaison avec les notes écrites (ADR-0005) -------------------------------------
+
+/**
+ * Prépare la comparaison : vérifie que la partition a autant de mesures que la grille et
+ * renvoie une fonction qui donne les notes écrites entre deux positions (mesure 0-based, temps).
+ */
+function preparerComparaison(grille, partition) {
+  if (!partition) return { ok: false, raison: null };
+  if (partition.mesures !== grille.mesures.length) {
+    return { ok: false, raison: `la partition compte ${partition.mesures} mesures et la grille ${grille.mesures.length} : comparaison impossible` };
+  }
+  const cumul = [0];
+  grille.mesures.forEach(m => cumul.push(cumul.at(-1) + m.tempsParMesure));
+  const abs = (mesure, temps) => cumul[mesure] + temps;
+  const notes = partition.notes.map(n => ({ ...n, abs: abs(n.mesure, n.temps) }));
+  return {
+    ok: true,
+    entre(m1, t1, m2, t2) {
+      const a = abs(m1, t1), b = m2 == null ? Infinity : abs(m2, t2);
+      return notes.filter(n => n.abs >= a - 1e-6 && n.abs < b - 1e-6);
+    },
+  };
+}
+
+/** Compare les notes jouées d'un segment aux notes écrites : exactes, à l'octave, manquées, ajoutées. */
+export function comparerNotes(accord, jouees, ecrites) {
+  const restJ = jouees.map(n => n.hauteur), restE = ecrites.map(n => n.hauteur);
+  let exactes = 0, octave = 0;
+  for (let i = restE.length - 1; i >= 0; i--) {
+    const k = restJ.indexOf(restE[i]);
+    if (k >= 0) { exactes++; restJ.splice(k, 1); restE.splice(i, 1); }
+  }
+  for (let i = restE.length - 1; i >= 0; i--) {
+    const k = restJ.findIndex(h => (h - restE[i]) % 12 === 0);
+    if (k >= 0) { octave++; restJ.splice(k, 1); restE.splice(i, 1); }
+  }
+  // note jouée à un ou deux demi-tons d'une note écrite non jouée : « X au lieu de Y »
+  const remplacees = [];
+  for (let i = restE.length - 1; i >= 0; i--) {
+    const k = restJ.findIndex(h => Math.abs(h - restE[i]) >= 1 && Math.abs(h - restE[i]) <= 2);
+    if (k >= 0) { remplacees.push({ jouee: nomNote(restJ[k]), ecrite: nomNote(restE[i]) }); restJ.splice(k, 1); restE.splice(i, 1); }
+  }
+  const ajoutees = restJ.map(h => ({ note: nomNote(h), hauteur: h, classe: classerNote(accord, h) }));
+  return {
+    ecrites: ecrites.length,
+    exactes,
+    octave,
+    remplacees,
+    manquees: restE.map(nomNote),
+    ajouteesAccord: ajoutees.filter(a => a.classe === 'accord' || a.classe === 'tension').map(a => a.note),
+    ajouteesHors: ajoutees.filter(a => a.classe === 'hors' || a.classe === 'eviter').map(a => a.note),
+  };
+}
+
+function resumerPartition(segs, cmp) {
+  if (!cmp) return null;
+  if (!cmp.ok) return cmp.raison ? { comparee: false, raison: cmp.raison } : null;
+  const avec = segs.filter(s => s.partition);
+  const somme = k => avec.reduce((x, s) => x + (Array.isArray(s.partition[k]) ? s.partition[k].length : s.partition[k]), 0);
+  const ecrites = somme('ecrites');
+  const manqueesParMesure = {};
+  for (const s of avec) if (s.partition.manquees.length) (manqueesParMesure[s.mesure] ??= []).push(...s.partition.manquees);
+  return {
+    comparee: true,
+    ecrites,
+    exactes: somme('exactes'),
+    octave: somme('octave'),
+    manquees: somme('manquees'),
+    remplacees: somme('remplacees'),
+    detailRemplacees: avec.flatMap(s => s.partition.remplacees.map(x => ({ mesure: s.mesure, symbole: s.symbole, ...x }))).slice(0, 10),
+    ajouteesAccord: somme('ajouteesAccord'),
+    ajouteesHors: somme('ajouteesHors'),
+    fidelite: ecrites ? Math.round(100 * (somme('exactes') + somme('octave')) / ecrites) : null, // %
+    mesuresManquees: Object.entries(manqueesParMesure).sort((a, b) => b[1].length - a[1].length).slice(0, 5)
+      .map(([mesure, notes]) => ({ mesure: +mesure, notes })),
+    guidesAbsentesDeLaPartition: avec.reduce((x, s) => x + (s.manquantesEcrites?.length || 0), 0),
+    notesEcritesHorsAccord: avec.reduce((x, s) => x + (s.notesEcritesHorsAccord || 0), 0),
+  };
 }

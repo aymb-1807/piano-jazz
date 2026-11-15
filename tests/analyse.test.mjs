@@ -4,8 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15j';
-import { analyserAccord } from '../js/accords.js?v=2026-11-15j';
+import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15k';
+import { analyserAccord } from '../js/accords.js?v=2026-11-15k';
 
 const charger = (nom) => JSON.parse(readFileSync(new URL(`./prises/${nom}.json`, import.meta.url), 'utf8'));
 const analyser = (nom) => analyserPrise(charger(nom));
@@ -209,4 +209,20 @@ test('pédale : jamais relevée avant la fin de la prise', () => {
   const { pedale } = analyserPrise({ ...p, pedale: [{ t: 500, enfoncee: true }] }).resume;
   assert.equal(pedale.appuis, 1);
   assert.ok(pedale.alerte);
+});
+
+test('pédale syncopée : appui juste après l\'accord, aucun accord superposé', () => {
+  const { pedale } = analyser('pedale').resume; // appui 20 ms après chaque accord, relevée 30 ms avant le suivant
+  assert.ok(pedale.delaiMedianMs >= 0 && pedale.delaiMedianMs <= 50, `délai ${pedale.delaiMedianMs}`);
+  assert.equal(pedale.accordsSuperposes, 0);
+  assert.equal(pedale.accordsSansChangement, 0);
+});
+
+test('pédale non relevée aux changements : accords superposés signalés', () => {
+  const p = charger('pedale');
+  // appuis décalés : enfoncée 300 ms AVANT chaque changement, relevée 300 ms après → chaque accord attaqué pédale enfoncée
+  const ped = p.pedale.map((e, i) => ({ t: e.t + (e.enfoncee ? 1700 : 330), enfoncee: e.enfoncee }));
+  const { pedale } = analyserPrise({ ...p, pedale: ped }).resume;
+  assert.ok(pedale.accordsSuperposes >= 6, `superposés ${pedale.accordsSuperposes}`);
+  assert.match(pedale.alerte, /encore enfoncée/);
 });

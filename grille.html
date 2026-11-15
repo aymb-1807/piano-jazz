@@ -95,7 +95,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15j</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15k</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -258,13 +258,14 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15j';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15j';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15j';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin } from './js/partition.js?v=2026-11-15j';
-import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15j';
-import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15j';
-import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15j';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15k';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15k';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15k';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition, enregistrerPrise, reparerSiBesoin, deballerMusicXML } from './js/partition.js?v=2026-11-15k';
+import { lireNotesMusicXML } from './js/musicxml.js?v=2026-11-15k';
+import { EntreeMidi, Enregistreur } from './js/prise.js?v=2026-11-15k';
+import { analyserPrise, calculerCalage } from './js/analyse.js?v=2026-11-15k';
+import { SuiveurHarmonique } from './js/suivi.js?v=2026-11-15k';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -746,8 +747,30 @@ function terminerPrise() {
   dernierePrise = p;
   $('exporter').style.display = '';
   enregistrerPrise(p).catch(() => {});
+  analyserEtAfficher(p, idCourant);
+}
+
+// Notes écrites de la partition associée à la grille (fichier importé ou exemple du dépôt), ou raison de l'absence.
+async function notesEcrites(idGrille) {
   try {
-    const a = analyserPrise(p);
+    const locale = await lirePartition(idGrille);
+    let texte = null;
+    if (locale?.blob) {
+      const debut = new Uint8Array(await locale.blob.slice(0, 2).arrayBuffer());
+      if (debut[0] === 0x50 && debut[1] === 0x4b) return { raison: 'partition compressée (.mxl) : comparaison note à note non disponible, exporte-la en .musicxml' };
+      texte = await locale.blob.text();
+    } else if (grille?.meta.partition) {
+      texte = await (await fetch(grille.meta.partition)).text();
+    } else return { raison: null };
+    return { partition: lireNotesMusicXML(deballerMusicXML(texte) || texte) };
+  } catch (e) { return { raison: 'partition illisible pour la comparaison : ' + (e.message || e) }; }
+}
+
+async function analyserEtAfficher(p, idGrille) {
+  const { partition, raison } = await notesEcrites(idGrille);
+  try {
+    const a = analyserPrise(p, {}, { partition });
+    if (!partition && raison) a.resume.partition = { comparee: false, raison };
     afficherRapport(a);
     afficherBilanCourt(resumeCourt(a.resume));
   } catch (e) { $('rapport').innerHTML = `<p class="err">Analyse impossible : ${echap(e.message || String(e))}</p>`; }
@@ -765,6 +788,7 @@ function resumeCourt(r) {
   return `<b>Bilan de la prise</b>
     <div class="chiffres">
       <div class="chiffre"><b>${r.accordsJoues}/${r.accords}</b><span>accords joués</span></div>
+      ${r.partition?.comparee ? `<div class="chiffre"><b>${r.partition.fidelite ?? '–'} %</b><span>fidélité à la partition</span></div>` : ''}
       <div class="chiffre"><b>${r.notesGuidesCompletes ?? '–'} %</b><span>notes guides</span></div>
       <div class="chiffre"><b>${r.faussesNotes}</b><span>${r.faussesNotes > 1 ? 'fausses notes' : 'fausse note'}</span></div>
       ${r.rythme ? `<div class="chiffre"><b>${ry.enPlace ?? '–'} %</b><span>attaques en place</span></div>` : `<div class="chiffre"><b>—</b><span>${r.libre ? 'jeu libre' : 'rythme libre'}</span></div>`}
@@ -772,13 +796,26 @@ function resumeCourt(r) {
     ${r.pedale?.alerte ? `<div class="err" style="margin-bottom:6px">⚠ ${echap(r.pedale.alerte)}</div>` : ''}
     ${travail ? `<div>À travailler :</div><ul style="margin:2px 0 0;padding-left:18px">${travail}</ul>` : '<div>Rien de marquant sur cette prise.</div>'}`;
 }
+function textePartition(p) {
+  if (!p) return 'Aucune partition importée pour cette grille : analyse par rapport aux accords seulement.';
+  if (!p.comparee) return `<span class="mut">${echap(p.raison || 'Comparaison non disponible.')}</span>`;
+  const n = x => echap(joli(x)); // B♭3, F♯4…
+  const lignes = [`<b>Fidélité ${p.fidelite} %</b> : ${p.exactes} notes jouées comme écrites${p.octave ? `, ${p.octave} à l'octave` : ''}, sur ${p.ecrites} écrites dans les mesures jouées.`];
+  if (p.remplacees) lignes.push(`Notes jouées à la place des notes écrites : ${p.detailRemplacees.map(x => `mes. ${x.mesure} ${n(x.symbole)} : ${n(x.jouee)} au lieu de ${n(x.ecrite)}`).join(' ; ')}.`);
+  if (p.manquees) lignes.push(`Notes écrites non jouées : ${p.manquees}${p.mesuresManquees.length ? ` (surtout mes. ${p.mesuresManquees.slice(0, 3).map(m => m.mesure).join(', ')})` : ''}.`);
+  if (p.ajouteesAccord || p.ajouteesHors) lignes.push(`Notes ajoutées : ${p.ajouteesAccord} dans l'accord (enrichissements)${p.ajouteesHors ? `, ${p.ajouteesHors} hors accord` : ''}.`);
+  if (p.notesEcritesHorsAccord || p.guidesAbsentesDeLaPartition) lignes.push(`<span class="mut">Non reprochés car écrits ainsi : ${p.notesEcritesHorsAccord} note(s) hors accord, ${p.guidesAbsentesDeLaPartition} note(s) guide(s) absente(s) de la partition.</span>`);
+  return lignes.join('<br>');
+}
 function textePedale(p) {
   if (!p) return '—';
   if (!p.utilisee) return 'Pédale de sustain non utilisée.';
   const s = ms => (ms / 1000).toFixed(ms < 10000 ? 1 : 0).replace('.', ',');
   const ligne = `${p.appuis} appui${p.appuis > 1 ? 's' : ''}` +
     (p.appuisParAccord != null ? ` (${String(p.appuisParAccord).replace('.', ',')} par accord joué)` : '') +
-    ` · enfoncée ${p.partEnfoncee} % du temps · appui moyen ${s(p.dureeMoyenneMs)} s · plus long ${s(p.plusLongMs)} s.`;
+    ` · enfoncée ${p.partEnfoncee} % du temps · appui moyen ${s(p.dureeMoyenneMs)} s · plus long ${s(p.plusLongMs)} s.` +
+    (p.attaquesAccord ? `<br>Changements : appui ${p.delaiMedianMs != null ? `${p.delaiMedianMs} ms après l'accord (médiane${p.delaiMedianMs >= 50 && p.delaiMedianMs <= 300 ? ', pédale syncopée' : ''})` : '—'}` +
+      ` · ${p.accordsSuperposes} accord${p.accordsSuperposes > 1 ? 's' : ''} attaqué${p.accordsSuperposes > 1 ? 's' : ''} pédale encore enfoncée · ${p.accordsSansChangement} sans changement de pédale (sur ${p.attaquesAccord}).` : '');
   return p.alerte ? `${ligne}<br><span class="err">⚠ ${echap(p.alerte)}</span>` : ligne;
 }
 function afficherBilanCourt(html) {
@@ -834,13 +871,15 @@ function afficherRapport({ segments, resume: r }) {
     <h3>Harmonie</h3>
     <p style="margin:0">Notes manquantes : ${manques || 'aucune'} · notes de passage : ${r.notesDePassage}</p>
     ${r.detailFausses.length ? `<ul>${r.detailFausses.slice(0, 6).map(f => `<li>mes. ${f.mesure} ${echap(f.symbole)} : ${echap(f.note)} (${echap(f.degre)}, ${f.classe === 'eviter' ? 'note à éviter' : 'hors accord'})</li>`).join('')}</ul>` : ''}
+    <h3>Partition</h3>
+    <p style="margin:0">${textePartition(r.partition)}</p>
     <h3>Pédale</h3>
     <p style="margin:0">${textePedale(r.pedale)}</p>
     <h3>Voicings</h3>
     <p style="margin:0">${lignesVoicings}</p>
     <h3>À travailler</h3>
     ${r.aTravailler.length ? `<ul>${r.aTravailler.map(a => `<li>mes. ${a.mesure} — ${a.raisons.map(echap).join(' ; ')}</li>`).join('')}</ul>` : '<p style="margin:0">Rien de marquant sur cette prise.</p>'}
-    <p class="mut" style="font-size:.78rem;margin-top:8px">Analyse par rapport à la grille d'accords (pas encore aux notes écrites de la partition). Calage appliqué : ${dernierePrise.calageMs} ms.</p>`;
+    <p class="mut" style="font-size:.78rem;margin-top:8px">${r.partition?.comparee ? 'Analyse par rapport à la grille et aux notes écrites de la partition : une note écrite n\'est jamais comptée comme fausse.' : 'Analyse par rapport à la grille d\'accords seulement.'} Calage appliqué : ${dernierePrise.calageMs} ms.</p>`;
 }
 
 $('exporter').onclick = () => {
