@@ -4,8 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15i';
-import { analyserAccord } from '../js/accords.js?v=2026-11-15i';
+import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15j';
+import { analyserAccord } from '../js/accords.js?v=2026-11-15j';
 
 const charger = (nom) => JSON.parse(readFileSync(new URL(`./prises/${nom}.json`, import.meta.url), 'utf8'));
 const analyser = (nom) => analyserPrise(charger(nom));
@@ -178,4 +178,35 @@ test('touches effleurées (vélocité < 8) ignorées', () => {
   const p = charger('juste');
   const avec = { ...p, notes: [...p.notes, { hauteur: 52, debut: 0, fin: 1900, velocite: 1 }] }; // mi bécarre inaudible sur Ebmaj7
   assert.equal(analyserPrise(avec).resume.faussesNotes, 0);
+});
+
+// --- Indicateur de pédale ---------------------------------------------------------
+
+test('pédale : non utilisée', () => {
+  const { pedale } = analyser('juste').resume;
+  assert.equal(pedale.utilisee, false);
+  assert.equal(pedale.appuis, 0);
+  assert.equal(pedale.alerte, null);
+});
+
+test('pédale : relevée à chaque accord, pas d\'alerte', () => {
+  const { pedale } = analyser('pedale').resume;
+  assert.equal(pedale.appuis, 8);
+  assert.equal(pedale.appuisParAccord, 1);
+  assert.ok(pedale.partEnfoncee > 80 && pedale.partEnfoncee <= 100, `part ${pedale.partEnfoncee}`);
+  assert.equal(pedale.alerte, null);
+});
+
+test('pédale : tenue tout du long, alerte', () => {
+  const { pedale } = analyser('libre-pedale-continue').resume;
+  assert.equal(pedale.appuis, 1);
+  assert.ok(pedale.plusLongMs > 15000, `plus long ${pedale.plusLongMs}`);
+  assert.match(pedale.alerte, /d'affilée/);
+});
+
+test('pédale : jamais relevée avant la fin de la prise', () => {
+  const p = charger('libre-juste');
+  const { pedale } = analyserPrise({ ...p, pedale: [{ t: 500, enfoncee: true }] }).resume;
+  assert.equal(pedale.appuis, 1);
+  assert.ok(pedale.alerte);
 });
