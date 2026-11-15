@@ -4,8 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15g';
-import { analyserAccord } from '../js/accords.js?v=2026-11-15g';
+import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15h';
+import { analyserAccord } from '../js/accords.js?v=2026-11-15h';
 
 const charger = (nom) => JSON.parse(readFileSync(new URL(`./prises/${nom}.json`, import.meta.url), 'utf8'));
 const analyser = (nom) => analyserPrise(charger(nom));
@@ -158,4 +158,12 @@ test('libre arrêt en cours : seuls les accords atteints sont jugés', () => {
   assert.equal(r.segments.length, 3);
   assert.equal(r.resume.arreteMesure, 2);
   assert.equal(r.resume.accordsJoues, 3);
+});
+
+test('libre arpégé : accords roulés reconnus comme des accords', () => {
+  const r = analyser('libre-arpege');
+  assert.equal(r.segments.length, 8);
+  assert.ok(r.segments.every(s => s.joue && s.manquantes.length === 0), JSON.stringify(r.segments.map(s => [s.symbole, s.manquantes])));
+  assert.equal(r.resume.faussesNotes, 0);
+  assert.ok(r.segments.every(s => s.voicings.length >= 1), 'un voicing par accord');
 });

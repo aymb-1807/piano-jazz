@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15g';
-import { NOMS } from './accords.js?v=2026-11-15g';
+import { lireGrille } from './grille.js?v=2026-11-15h';
+import { NOMS } from './accords.js?v=2026-11-15h';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant
@@ -14,6 +14,7 @@ export const SEUILS = {
   enPlaceMs: 60,        // ms : attaque d'accord considérée en place
   // Jeu libre (rubato) : pas de temps de référence
   tenueLibreMs: 400,    // note isolée structurelle si tenue au moins 400 ms
+  attaqueLibreMs: 150,  // accord roulé/arpégé : notes enchaînées à moins de 150 ms = une seule attaque
   sauterAccord: 3,      // pénalité d'alignement pour un accord de la grille sauté
   resterAccord: 0.2,    // pénalité légère pour rester sur le même accord (mélodie, arpège)
 };
@@ -292,12 +293,14 @@ function analyserPriseLibre(prise, S) {
     finSonore: pedaleEnfonceeA(n.fin) ? Math.max(n.fin, relachePedaleApres(n.fin)) : n.fin,
   })).sort((a, b) => a.debut - b.debut);
 
-  // Attaques, puis fenêtres harmoniques délimitées par les attaques d'accord (≥ 2 notes)
+  // Attaques, puis fenêtres harmoniques délimitées par les attaques d'accord (≥ 2 notes).
+  // En jeu libre les accords sont souvent roulés (« Play freely ») : on enchaîne les notes
+  // séparées de moins de attaqueLibreMs de la précédente.
   const attaques = [];
   for (const n of notes) {
     const a = attaques.at(-1);
-    if (a && n.debut - a.debut <= S.attaqueMs) a.notes.push(n);
-    else attaques.push({ debut: n.debut, notes: [n] });
+    if (a && (n.debut - a.debut <= S.attaqueMs || n.debut - a.derniere <= S.attaqueLibreMs)) { a.notes.push(n); a.derniere = n.debut; }
+    else attaques.push({ debut: n.debut, derniere: n.debut, notes: [n] });
   }
   for (const a of attaques) { a.notes.sort((x, y) => x.hauteur - y.hauteur); for (const n of a.notes) n.attaque = a; }
   const bornes = attaques.filter(a => a.notes.length >= 2);

@@ -2,9 +2,9 @@
 // Utilisé seulement pour l'affichage (accord en cours, curseur) : l'analyse finale refait un
 // alignement complet de la prise (analyse.js, analyserPriseLibre).
 
-import { suiteAccords, scoreHarmonique } from './analyse.js?v=2026-11-15g';
+import { suiteAccords, scoreHarmonique } from './analyse.js?v=2026-11-15h';
 
-const REGROUPEMENT_MS = 90;   // attendre la fin d'un accord plaqué avant d'évaluer
+const REGROUPEMENT_MS = 170;  // attendre la fin d'un accord (plaqué ou roulé) avant d'évaluer
 const MARGE = 1.0;            // avance seulement si l'accord suivant colle nettement mieux
 const SAUT = 3;               // pénalité pour sauter un accord (comme l'alignement final)
 
@@ -40,7 +40,11 @@ export class SuiveurHarmonique {
 
   evaluer() {
     const maintenant = performance.now();
-    const attaque = this.recentes.filter(r => maintenant - r.t <= REGROUPEMENT_MS + 80);
+    // notes enchaînées à moins de 170 ms l'une de l'autre = un même accord (éventuellement roulé)
+    const rec = this.recentes.filter(r => maintenant - r.t <= 1500).sort((a, b) => a.t - b.t);
+    let k = rec.length - 1;
+    while (k > 0 && rec[k].t - rec[k - 1].t <= REGROUPEMENT_MS) k--;
+    const attaque = rec.slice(k);
     this.recentes = attaque;
     // une note isolée (mélodie) ne fait pas changer d'accord ; un accord plaqué, si
     if (attaque.length < 2) return;
