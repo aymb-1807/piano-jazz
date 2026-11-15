@@ -4,8 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15f';
-import { analyserAccord } from '../js/accords.js?v=2026-11-15f';
+import { analyserPrise, classerNote, typeVoicing, calculerCalage } from '../js/analyse.js?v=2026-11-15g';
+import { analyserAccord } from '../js/accords.js?v=2026-11-15g';
 
 const charger = (nom) => JSON.parse(readFileSync(new URL(`./prises/${nom}.json`, import.meta.url), 'utf8'));
 const analyser = (nom) => analyserPrise(charger(nom));
@@ -116,4 +116,46 @@ test('calibration : médiane des écarts, valeurs aberrantes écartées', () => 
 
 test('format de prise inconnu refusé', () => {
   assert.throws(() => analyserPrise({ ...charger('juste'), format: 'autre' }), /format/);
+});
+
+// --- Modes « accords seulement » et « libre » --------------------------------------
+
+test('mode accords : retard ignoré, rien à travailler', () => {
+  const { resume } = analyser('accords-seulement');
+  assert.equal(resume.mode, 'accords');
+  assert.equal(resume.rythme, null);
+  assert.equal(resume.notesGuidesCompletes, 100);
+  assert.deepEqual(resume.aTravailler, []);
+});
+
+test('libre juste : chaque accord retrouvé malgré le rubato', () => {
+  const r = analyser('libre-juste');
+  assert.equal(r.resume.libre, true);
+  assert.equal(r.resume.rythme, null);
+  assert.deepEqual(r.segments.map(s => s.symbole), ['Ebmaj7', 'Cm7', 'Fm7', 'Bb7', 'Gm7', 'C7', 'Fm7', 'Bb7']);
+  assert.ok(r.segments.every(s => s.joue && s.manquantes.length === 0));
+  assert.equal(r.resume.faussesNotes, 0);
+});
+
+test('libre saut : l\'accord sauté est signalé, les suivants restent alignés', () => {
+  const r = analyser('libre-saut');
+  assert.equal(seg(r, 3, 'Gm7').joue, false);
+  assert.equal(seg(r, 3, 'C7').joue, true);
+  assert.equal(seg(r, 3, 'C7').manquantes.length, 0);
+  assert.equal(r.resume.aTravailler[0].mesure, 3);
+});
+
+test('libre fausse note : la bécarre sur Bb7 détecté', () => {
+  const r = analyser('libre-fausse-note');
+  const s = seg(r, 2, 'Bb7');
+  assert.equal(s.fausses.length, 1);
+  assert.equal(s.fausses[0].note, 'A3');
+  assert.equal(r.resume.faussesNotes, 1);
+});
+
+test('libre arrêt en cours : seuls les accords atteints sont jugés', () => {
+  const r = analyser('libre-arrete');
+  assert.equal(r.segments.length, 3);
+  assert.equal(r.resume.arreteMesure, 2);
+  assert.equal(r.resume.accordsJoues, 3);
 });

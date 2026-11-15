@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15f';
-import { NOMS } from './accords.js?v=2026-11-15f';
+import { lireGrille } from './grille.js?v=2026-11-15g';
+import { NOMS } from './accords.js?v=2026-11-15g';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant
@@ -12,6 +12,10 @@ export const SEUILS = {
   surLeTemps: 0.15,     // temps : tolérance pour « sur le temps »
   tenue: 0.5,           // temps : durée minimale d'une note structurelle isolée
   enPlaceMs: 60,        // ms : attaque d'accord considérée en place
+  // Jeu libre (rubato) : pas de temps de référence
+  tenueLibreMs: 400,    // note isolée structurelle si tenue au moins 400 ms
+  sauterAccord: 3,      // pénalité d'alignement pour un accord de la grille sauté
+  resterAccord: 0.2,    // pénalité légère pour rester sur le même accord (mélodie, arpège)
 };
 
 // Tensions disponibles et notes à éviter, en demi-tons au-dessus de la fondamentale
@@ -99,6 +103,8 @@ function ecartType(v) {
 export function analyserPrise(prise, seuils = {}) {
   const S = { ...SEUILS, ...seuils };
   if (prise.format !== 'piano-jazz/prise@1') throw new Error('format de prise inconnu : ' + prise.format);
+  if (prise.mode === 'libre') return analyserPriseLibre(prise, S);
+  const rythme = prise.mode !== 'accords'; // « accords » : tempo de l'accompagnement, rythme non jugé
   const grille = lireGrille(prise.grille.texte, { transposition: prise.grille.transposition || 0 });
   const cal = prise.calageMs || 0;
   const temps = prise.temps.filter(b => !b.decompte).sort((a, b) => a.t - b.t);
@@ -170,62 +176,20 @@ export function analyserPrise(prise, seuils = {}) {
     const dt = s.dureeTemps;
     const attaquees = notes.filter(n => segmentDe(n) === s);
     const sonnantes = notes.filter(n => Math.min(n.finSonore, s.fin) - Math.max(n.debut, s.debut - S.anticipation * dt) >= S.sonne * dt);
-    const pcs = new Set(sonnantes.map(n => ((n.hauteur % 12) + 12) % 12));
-
     const r = { tour: s.tour, mesure: s.mesure + 1, temps: s.temps + 1, symbole: s.accord.symbole, nc: !!s.accord.nc };
     if (s.accord.nc) return { ...r, joue: attaquees.length > 0, notes: attaquees.length };
 
-    const acc = s.accord;
-    const iv = acc.intervalles;
-    const tierce = iv.find(i => i === 3 || i === 4 || i === 5);
-    const septieme = iv.find(i => i === 9 || i === 10 || i === 11);
-    const attendues = [];
-    if (tierce != null) attendues.push({ nom: acc.qualite.includes('sus') ? '4te' : '3ce', pc: (acc.fondamentale + tierce) % 12 });
-    if (septieme != null) attendues.push({ nom: septieme === 9 ? (acc.qualite === 'dim7' ? '7e' : '6te') : '7e', pc: (acc.fondamentale + septieme) % 12 });
-    const manquantes = attendues.filter(x => !pcs.has(x.pc)).map(x => x.nom);
-    const fondamentale = pcs.has(acc.fondamentale);
-
-    // Classement des notes attaquées
-    const fausses = [], passage = [], tensions = new Set();
-    for (const n of attaquees) {
-      const c = classerNote(acc, n.hauteur);
-      const ivn = ((n.hauteur % 12) + 12 - acc.fondamentale) % 12;
-      if (c === 'tension') tensions.add(degre(acc, ivn));
-      if (c !== 'hors' && c !== 'eviter') continue;
+    const h = harmonie(s.accord, attaquees, sonnantes, n => {
       const pos = positionA(n.debut);
       const surTemps = Math.abs(pos - Math.round(pos)) <= S.surLeTemps;
-      const tenue = (n.fin - n.debut) >= S.tenue * dt;
-      const structurelle = n.attaque.notes.length >= 2 || (surTemps && tenue);
-      const info = { note: nomNote(n.hauteur), hauteur: n.hauteur, degre: degre(acc, ivn), classe: c, tempsDansMesure: +(posDansMesure(pos) + 1).toFixed(2) };
-      (structurelle ? fausses : passage).push(info);
-    }
-
-    // Voicings (attaques d'au moins 2 notes rattachées au segment)
-    const voicings = [];
-    const vues = new Set();
-    for (const n of attaquees) {
-      const a = n.attaque;
-      if (vues.has(a) || a.notes.length < 2) continue;
-      vues.add(a);
-      voicings.push({ notes: a.notes.map(x => nomNote(x.hauteur)), ...typeVoicing(acc, a.notes.map(x => x.hauteur)) });
-    }
+      return n.attaque.notes.length >= 2 || (surTemps && (n.fin - n.debut) >= S.tenue * dt);
+    }, n => +(posDansMesure(positionA(n.debut)) + 1).toFixed(2));
 
     // Placement de l'attaque d'accord
-    const aAccord = attaques.find(a => a.notes.length >= 2 && Math.abs(a.debut - s.debut) <= 0.5 * dt && segmentDe(a.notes[0]) === s);
+    const aAccord = rythme && attaques.find(a => a.notes.length >= 2 && Math.abs(a.debut - s.debut) <= 0.5 * dt && segmentDe(a.notes[0]) === s);
     const decalageMs = aAccord ? Math.round(aAccord.debut - s.debut) : null;
 
-    return {
-      ...r,
-      joue: attaquees.length > 0 || sonnantes.length > 0,
-      notesJouees: [...pcs].map(pc => NOMS[pc]),
-      fondamentale,
-      manquantes,
-      tensions: [...tensions],
-      fausses,
-      passage: passage.length,
-      voicings,
-      decalageMs,
-    };
+    return { ...r, ...h, decalageMs };
 
     function posDansMesure(pos) {
       const i = Math.max(0, Math.min(temps.length - 1, Math.floor(pos)));
@@ -233,10 +197,164 @@ export function analyserPrise(prise, seuils = {}) {
     }
   });
 
-  return { segments: rapportSegments, resume: resumer(rapportSegments, S, prise) };
+  return { segments: rapportSegments, resume: resumer(rapportSegments, S, prise, { rythme }) };
 }
 
-function resumer(segs, S, prise) {
+/** Analyse harmonique d'un segment, commune aux trois modes. */
+function harmonie(acc, attaquees, sonnantes, estStructurelle, position) {
+  const pcs = new Set(sonnantes.map(n => ((n.hauteur % 12) + 12) % 12));
+  const iv = acc.intervalles;
+  const tierce = iv.find(i => i === 3 || i === 4 || i === 5);
+  const septieme = iv.find(i => i === 9 || i === 10 || i === 11);
+  const attendues = [];
+  if (tierce != null) attendues.push({ nom: acc.qualite.includes('sus') ? '4te' : '3ce', pc: (acc.fondamentale + tierce) % 12 });
+  if (septieme != null) attendues.push({ nom: septieme === 9 ? (acc.qualite === 'dim7' ? '7e' : '6te') : '7e', pc: (acc.fondamentale + septieme) % 12 });
+  const manquantes = attendues.filter(x => !pcs.has(x.pc)).map(x => x.nom);
+
+  const fausses = [], passage = [], tensions = new Set();
+  for (const n of attaquees) {
+    const c = classerNote(acc, n.hauteur);
+    const ivn = ((n.hauteur % 12) + 12 - acc.fondamentale) % 12;
+    if (c === 'tension') tensions.add(degre(acc, ivn));
+    if (c !== 'hors' && c !== 'eviter') continue;
+    const info = { note: nomNote(n.hauteur), hauteur: n.hauteur, degre: degre(acc, ivn), classe: c, tempsDansMesure: position(n) };
+    (estStructurelle(n) ? fausses : passage).push(info);
+  }
+
+  const voicings = [];
+  const vues = new Set();
+  for (const n of attaquees) {
+    const a = n.attaque;
+    if (vues.has(a) || a.notes.length < 2) continue;
+    vues.add(a);
+    voicings.push({ notes: a.notes.map(x => nomNote(x.hauteur)), ...typeVoicing(acc, a.notes.map(x => x.hauteur)) });
+  }
+  return {
+    joue: attaquees.length > 0 || sonnantes.length > 0,
+    notesJouees: [...pcs].map(pc => NOMS[pc]),
+    fondamentale: pcs.has(acc.fondamentale),
+    manquantes,
+    tensions: [...tensions],
+    fausses,
+    passage: passage.length,
+    voicings,
+  };
+}
+
+// --- Jeu libre (rubato) ---------------------------------------------------------------
+
+/** Suite des accords de la grille, dans l'ordre, sans N.C. ni prolongations (« / »). */
+export function suiteAccords(grille, debut = 1, fin = grille.mesures.length) {
+  const suite = [];
+  for (let i = debut - 1; i < fin; i++) {
+    for (const a of grille.mesures[i].accords) {
+      if (a.nc) continue;
+      const prec = suite.at(-1);
+      if (a.prolonge && prec && prec.accord.symbole === a.symbole) continue;
+      suite.push({ mesure: i, temps: a.temps, accord: a });
+    }
+  }
+  return suite;
+}
+
+/**
+ * Adéquation d'un ensemble de notes à un accord (plus c'est haut, mieux ça colle).
+ * @param hauteurs notes qui sonnent ; @param basse note la plus grave attaquée (ou null)
+ */
+export function scoreHarmonique(accord, hauteurs, basse = null) {
+  const pcs = new Set(hauteurs.map(h => ((h % 12) + 12) % 12));
+  if (!pcs.size) return 0;
+  const guides = new Set(accord.notesGuides);
+  let sc = 0;
+  for (const pc of pcs) {
+    if (guides.has(pc)) sc += 2;
+    else if (accord.classes.includes(pc)) sc += 1;
+    else {
+      const c = classerNote(accord, pc + 60);
+      sc += c === 'tension' ? 0.3 : c === 'eviter' ? -0.8 : -1.5;
+    }
+  }
+  if (basse != null && (((basse % 12) + 12) % 12 === accord.basse || ((basse % 12) + 12) % 12 === accord.fondamentale)) sc += 1.5;
+  return sc;
+}
+
+function analyserPriseLibre(prise, S) {
+  const grille = lireGrille(prise.grille.texte, { transposition: prise.grille.transposition || 0 });
+  const [d, f] = prise.plage ? [prise.plage.debut, prise.plage.fin] : [1, grille.mesures.length];
+  const suite = suiteAccords(grille, d, f);
+  if (!suite.length) throw new Error('aucun accord dans la grille');
+
+  const pedale = (prise.pedale || []).slice().sort((a, b) => a.t - b.t);
+  const pedaleEnfonceeA = (t) => { let e = false; for (const p of pedale) { if (p.t > t) break; e = p.enfoncee; } return e; };
+  const relachePedaleApres = (t) => pedale.find(p => p.t > t && !p.enfoncee)?.t ?? Infinity;
+  const notes = prise.notes.map(n => ({
+    hauteur: n.hauteur, velocite: n.velocite, debut: n.debut, fin: n.fin,
+    finSonore: pedaleEnfonceeA(n.fin) ? Math.max(n.fin, relachePedaleApres(n.fin)) : n.fin,
+  })).sort((a, b) => a.debut - b.debut);
+
+  // Attaques, puis fenêtres harmoniques délimitées par les attaques d'accord (≥ 2 notes)
+  const attaques = [];
+  for (const n of notes) {
+    const a = attaques.at(-1);
+    if (a && n.debut - a.debut <= S.attaqueMs) a.notes.push(n);
+    else attaques.push({ debut: n.debut, notes: [n] });
+  }
+  for (const a of attaques) { a.notes.sort((x, y) => x.hauteur - y.hauteur); for (const n of a.notes) n.attaque = a; }
+  const bornes = attaques.filter(a => a.notes.length >= 2);
+  const reperes = bornes.length >= 2 ? bornes : attaques; // jeu en notes isolées : chaque attaque
+  const finPrise = Math.max(0, ...notes.map(n => n.finSonore));
+  const fenetres = reperes.map((a, k) => {
+    const debut = k === 0 ? Math.min(a.debut, notes[0]?.debut ?? a.debut) : a.debut;
+    const fin = k + 1 < reperes.length ? reperes[k + 1].debut : finPrise + 1;
+    const attaquees = notes.filter(n => n.debut >= debut - 1e-6 && n.debut < fin - 1e-6);
+    const duree = fin - debut;
+    const sonnantes = notes.filter(n => Math.min(n.finSonore, fin) - Math.max(n.debut, debut) >= Math.min(250, duree * 0.5));
+    return { debut, fin, attaquees, sonnantes, basse: a.notes[0].hauteur };
+  });
+  if (!fenetres.length) throw new Error('aucune note jouée');
+
+  // Alignement monotone fenêtres → accords (programmation dynamique)
+  const W = fenetres.length, N = suite.length, MOINS = -1e9;
+  const sc = fenetres.map(fw => suite.map(s => scoreHarmonique(s.accord, fw.sonnantes.map(n => n.hauteur), fw.basse)));
+  const dp = Array.from({ length: W }, () => new Float64Array(N).fill(MOINS));
+  const prec = Array.from({ length: W }, () => new Int32Array(N).fill(-1));
+  for (let j = 0; j < N; j++) dp[0][j] = sc[0][j] - S.sauterAccord * j;
+  for (let w = 1; w < W; w++) {
+    for (let j = 0; j < N; j++) {
+      let best = MOINS, arg = -1;
+      for (let k = 0; k <= j; k++) {
+        const pen = k === j ? S.resterAccord : (j - k - 1) * S.sauterAccord;
+        const v = dp[w - 1][k] - pen;
+        if (v > best) { best = v; arg = k; }
+      }
+      dp[w][j] = best + sc[w][j];
+      prec[w][j] = arg;
+    }
+  }
+  let j = 0;
+  for (let k = 1; k < N; k++) if (dp[W - 1][k] > dp[W - 1][j]) j = k;
+  const affect = new Array(W);
+  for (let w = W - 1; w >= 0; w--) { affect[w] = j; j = prec[w][j]; }
+  const dernierJoue = affect[W - 1];
+
+  // Rapport par accord de la grille (jusqu'au dernier accord atteint)
+  const segments = suite.slice(0, dernierJoue + 1).map((s, idx) => {
+    const fw = fenetres.filter((_, w) => affect[w] === idx);
+    const attaquees = fw.flatMap(x => x.attaquees);
+    const sonnantes = [...new Set(fw.flatMap(x => x.sonnantes))];
+    const r = { tour: 0, mesure: s.mesure + 1, temps: s.temps + 1, symbole: s.accord.symbole, nc: false };
+    if (!fw.length) return { ...r, joue: false, notesJouees: [], fondamentale: false, manquantes: [], tensions: [], fausses: [], passage: 0, voicings: [], decalageMs: null };
+    const h = harmonie(s.accord, attaquees, sonnantes, n => n.attaque.notes.length >= 2 || (n.fin - n.debut) >= S.tenueLibreMs, () => null);
+    return { ...r, ...h, decalageMs: null };
+  });
+  const resume = resumer(segments, S, prise, { rythme: false });
+  resume.libre = true;
+  resume.accordsGrille = suite.length;
+  resume.arreteMesure = segments.at(-1)?.mesure ?? null;
+  return { segments, resume };
+}
+
+function resumer(segs, S, prise, { rythme = true } = {}) {
   const harmo = segs.filter(s => !s.nc);
   const joues = harmo.filter(s => s.joue);
   const avecGuides = joues.filter(s => s.manquantes.length === 0);
@@ -255,7 +373,7 @@ function resumer(segs, S, prise) {
     if (!s.joue) { p.score += 2; p.raisons.add('accord non joué'); continue; }
     if (s.manquantes.length) { p.score += s.manquantes.length; p.raisons.add(`${s.symbole} : ${s.manquantes.join(' et ')} manquante${s.manquantes.length > 1 ? 's' : ''}`); }
     if (s.fausses.length) { p.score += 2 * s.fausses.length; p.raisons.add(`${s.symbole} : ${s.fausses.map(f => f.note.replace(/\d+$/, '')).join(', ')} hors accord`); }
-    if (s.decalageMs != null && Math.abs(s.decalageMs) > 2 * S.enPlaceMs) { p.score += 1; p.raisons.add(`${s.symbole} : attaque ${s.decalageMs > 0 ? 'en retard' : 'en avance'} de ${Math.abs(s.decalageMs)} ms`); }
+    if (rythme && s.decalageMs != null && Math.abs(s.decalageMs) > 2 * S.enPlaceMs) { p.score += 1; p.raisons.add(`${s.symbole} : attaque ${s.decalageMs > 0 ? 'en retard' : 'en avance'} de ${Math.abs(s.decalageMs)} ms`); }
   }
   const aTravailler = Object.values(parMesure).filter(p => p.score > 0)
     .sort((a, b) => b.score - a.score || a.mesure - b.mesure).slice(0, 5)
@@ -273,7 +391,8 @@ function resumer(segs, S, prise) {
     detailFausses: fausses.slice(0, 20),
     notesDePassage: joues.reduce((a, s) => a + s.passage, 0),
     voicings: types,
-    rythme: {
+    mode: prise.mode || 'mesure',
+    rythme: !rythme ? null : {
       attaquesMesurees: decalages.length,
       decalageMoyenMs: r1(moyenne(decalages)),
       decalageMedianMs: r1(mediane(decalages)),

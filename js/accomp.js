@@ -3,7 +3,7 @@
 // même à 50 BPM. Chaque temps joué est horodaté dans le repère performance.now()
 // – le même que les horodatages MIDI – pour l'analyse rythmique de l'étape 3.
 
-import { accordA } from './grille.js?v=2026-11-15f';
+import { accordA } from './grille.js?v=2026-11-15g';
 
 const ANTICIPATION = 0.15; // s d'audio programmé à l'avance
 const PERIODE = 25;        // ms entre deux passages de l'ordonnanceur
@@ -14,7 +14,7 @@ export class Accompagnement {
     this.enCours = false;
     this.reglages = {
       tempo: 60,
-      mode: 'accomp',        // 'accomp' | 'metro'
+      mode: 'accomp',        // 'accomp' (balais, ballade) | 'swing' (ride) | 'metro'
       basse: 'deux',         // 'deux' (2 temps, ballade) | 'walking'
       metro: 'tous',         // 'tous' | '24' (temps 2 et 4)
       decompte: 1,           // mesures de décompte : 0, 1, 2
@@ -171,7 +171,7 @@ export class Accompagnement {
       return;
     }
     if (accordA(this.grille, iMesure, temps)?.nc) { this.clic(t, temps === 0 ? 1 : 0.6, temps === 0); return; }
-    this.batterie(t, temps);
+    if (r.mode === 'swing') this.ride(t, temps); else this.batterie(t, temps);
     for (const n of this.ligneBasse[iMesure] || []) {
       if (Math.abs(n.temps - temps) < 1e-6) this.noteBasse(t, n.midi, n.duree * this.dureeTemps());
       // notes hors temps (non utilisées pour l'instant, prévu pour des croches d'approche)
@@ -213,6 +213,43 @@ export class Accompagnement {
     // attaque du doigt sur la corde
     this.bruitFiltre(t, 'bandpass', 900, 0.08, 0.02, this.busBasse, 1.5);
     for (const o of [o1, o2]) { o.start(t); o.stop(t + tenue + 0.1); }
+  }
+
+  // Batterie swing : ride « ding, ding-ga, ding, ding-ga », charleston au pied sur 2 et 4.
+  ride(t, temps) {
+    const d = this.dureeTemps();
+    this.coupRide(t, temps % 2 === 0 ? 0.55 : 0.45);
+    if (temps % 2 === 1) {
+      this.coupRide(t + d * 2 / 3, 0.3);                                  // croche swinguée (ternaire)
+      this.bruitFiltre(t, 'highpass', 7500, 0.05, 0.14, this.busBatterie); // charleston au pied
+    }
+    // grosse caisse « plume » sur les 4 temps, à peine audible
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.frequency.setValueAtTime(80, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.12, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(g).connect(this.busBatterie);
+    o.start(t); o.stop(t + 0.2);
+  }
+
+  // Cymbale ride : oscillateurs carrés inharmoniques + bruit, filtrés dans l'aigu.
+  coupRide(t, vel) {
+    const c = this.ctx;
+    const passeHaut = c.createBiquadFilter(); passeHaut.type = 'highpass'; passeHaut.frequency.value = 6000;
+    const bande = c.createBiquadFilter(); bande.type = 'bandpass'; bande.frequency.value = 9000; bande.Q.value = 0.8;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.11 * vel, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.03 * vel, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+    bande.connect(passeHaut).connect(g).connect(this.busBatterie);
+    for (const r of [2, 3, 4.16, 5.43, 6.79, 8.21]) {
+      const o = c.createOscillator(); o.type = 'square'; o.frequency.value = 205 * r;
+      o.connect(bande); o.start(t); o.stop(t + 0.95);
+    }
+    this.bruitFiltre(t, 'highpass', 8000, 0.25, 0.05 * vel, this.busBatterie);
   }
 
   batterie(t, temps) {

@@ -62,3 +62,23 @@ Degrés de chaque attaque, du grave à l'aigu. Types reconnus : shell (F-3-7 / F
 - Les seuils (0,15 temps, 60 ms, 0,25 temps) sont des valeurs de départ : **à ajuster sur de vraies prises** exportées du téléphone.
 - Swing à tempo medium (Autumn Leaves) : les croches swinguées ne pénalisent pas (on ne mesure que les attaques d'accord), mais aucun indicateur de swing n'est calculé.
 - Le moteur est une fonction pure (`analyserPrise(prise)`), testée dans Node sur des prises de référence (`docs/tests.md`).
+
+## Avenant du 15/11/2026 : modes de jeu
+
+Demande du propriétaire : jouer l'arrangement « plus jazz », ou librement comme l'original (« Play freely »), et ne faire juger que les accords.
+
+| Mode (`prise.mode`) | Accompagnement | Ce qui est jugé |
+|---|---|---|
+| `mesure` (par défaut) | oui, au tempo choisi | accords + placement rythmique (règles ci-dessus) |
+| `accords` | oui (balais ou swing avec ride) | accords seulement : `decalageMs` non calculé, `resume.rythme = null`, aucune mesure « à travailler » pour un motif rythmique |
+| `libre` (rubato) | non, pas de tempo | accords seulement, après **alignement** de la prise sur la grille |
+
+### Jeu libre : alignement prise → grille
+
+- **Fenêtres harmoniques** : la prise est découpée aux attaques d'accord (au moins 2 notes à 60 ms près) ; à défaut, à chaque attaque.
+- **Adéquation fenêtre/accord** (`scoreHarmonique`) : note guide +2, autre note de l'accord +1, tension +0,3, note à éviter −0,8, hors accord −1,5, basse égale à la fondamentale ou à la basse de l'accord +1,5.
+- **Alignement monotone** par programmation dynamique : une fenêtre reste sur le même accord (−0,2, mélodie ou arpège) ou passe au suivant (0) ; sauter un accord coûte 3. La fin est libre : on juge les accords atteints, et un arrêt en cours de grille n'est pas reproché.
+- **Note structurelle** sans temps de référence : attaquée dans un voicing, ou tenue au moins 400 ms.
+- **Affichage en direct** (`js/suivi.js`) : version simplifiée et gloutonne (l'accord suivant doit coller nettement mieux, à chaque accord plaqué ; une note isolée ne fait pas avancer). L'analyse finale refait l'alignement complet, plus fiable.
+
+Limites : une grille où deux accords consécutifs sont très proches (ex. Cm7 → Cm6) peut être mal suivie en direct ; un pianiste qui rejoue plusieurs fois une section non écrite dans la grille sera aligné au mieux mais sans reprise. À valider sur de vraies prises.
