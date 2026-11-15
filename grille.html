@@ -63,7 +63,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-14b</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15a</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -171,11 +171,24 @@
   </details>
 </div>
 
+<div class="card">
+  <details id="diag">
+    <summary>Diagnostic (à ouvrir pendant la lecture si quelque chose ne marche pas)</summary>
+    <pre id="diagTxt" style="white-space:pre-wrap;font-size:.75rem;line-height:1.45;margin:8px 0 0;color:var(--fg)"></pre>
+  </details>
+</div>
+
+<script>
+  // erreurs capturées avant même le chargement des modules
+  window.__erreurs = [];
+  addEventListener('error', e => window.__erreurs.push((e.message || 'erreur') + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : '')));
+  addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
+</script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-14b';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-14b';
-import { Accompagnement } from './js/accomp.js?v=2026-11-14b';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-14b';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15a';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15a';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15a';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-15a';
 
 const $ = id => document.getElementById(id);
 const stock = {
@@ -335,7 +348,10 @@ acc.surTemps = e => {
 };
 acc.surImage = (mesure, temps) => placerCurseur(mesure, temps);
 let erreurCurseur = false;
+const diag = { image: 0, temps: 0, dernier: '-' };
 function placerCurseur(mesure, temps) {
+  if (Number.isInteger(temps)) diag.temps++; else diag.image++;
+  diag.dernier = `mes. ${mesure + 1}, temps ${temps.toFixed(2)}`;
   if (!partitionPrete) return;
   try { vue.placer(mesure, temps, 4); }
   catch (err) {
@@ -474,6 +490,33 @@ function zoomer(f) {
 }
 $('zMoins').onclick = () => zoomer(1 / 1.15);
 $('zPlus').onclick = () => zoomer(1.15);
+
+// --- Diagnostic -----------------------------------------------------------------
+setInterval(() => {
+  if (!$('diag').open) return;
+  const L = [];
+  const c = acc.ctx;
+  L.push(`version : ${document.querySelector('h1 span')?.textContent} · ${navigator.userAgent.match(/Chrome\/[\d.]+/)?.[0] || navigator.userAgent}`);
+  L.push(`lecture : ${acc.enCours ? 'oui' : 'non'} · surImage branché : ${typeof acc.surImage === 'function'} · accomp.js récent : ${'dernierEntendu' in acc}`);
+  if (c) {
+    let ts = null; try { ts = c.getOutputTimestamp?.(); } catch {}
+    L.push(`audio : état ${c.state} · currentTime ${c.currentTime.toFixed(3)} · outputLatency ${(c.outputLatency ?? NaN).toFixed?.(3)} · baseLatency ${(c.baseLatency ?? NaN).toFixed?.(3)}`);
+    L.push(`getOutputTimestamp : ${ts ? `contextTime ${(+ts.contextTime).toFixed(3)} · performanceTime ${(+ts.performanceTime).toFixed(0)} (now ${performance.now().toFixed(0)})` : 'indisponible'}`);
+  } else L.push('audio : pas encore initialisé');
+  L.push(`appels curseur : ${diag.temps} par temps, ${diag.image} par image · dernier : ${diag.dernier}`);
+  L.push(`partition : prête ${partitionPrete} · OSMD ${!!window.opensheetmusicdisplay} · mesures ${vue.nbMesures}`);
+  const cur = vue.osmd?.cursor;
+  if (cur) {
+    let tsCur = '?'; try { tsCur = cur.Iterator.CurrentSourceTimestamp.RealValue.toFixed(3); } catch (e) { tsCur = 'erreur ' + e.message; }
+    const el = cur.cursorElement; const r = el?.getBoundingClientRect();
+    L.push(`curseur : masqué ${cur.Hidden} · position musicale ${tsCur} (rondes) · mesure ${cur.Iterator?.CurrentMeasureIndex + 1}`);
+    L.push(`image curseur : ${el ? `display ${getComputedStyle(el).display} · ${Math.round(r.left)},${Math.round(r.top)} · ${Math.round(r.width)}×${Math.round(r.height)} · dans le DOM ${document.contains(el)}` : 'absente'}`);
+  } else L.push('curseur : aucun');
+  const zone = $('partition').getBoundingClientRect();
+  L.push(`zone partition : ${Math.round(zone.width)}×${Math.round(zone.height)} · défilement ${$('partition').scrollTop} · fenêtre ${innerWidth}×${innerHeight}`);
+  L.push(`erreurs : ${window.__erreurs.length ? window.__erreurs.slice(-5).join(' | ') : 'aucune'}`);
+  $('diagTxt').textContent = L.join('\n');
+}, 300);
 
 remplirChoix();
 charger(idCourant);
