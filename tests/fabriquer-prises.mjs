@@ -3,7 +3,7 @@
 // Grille : exercice « notes guides » (Misty mes. 5-8), 60 BPM → 1 temps = 1000 ms.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15d';
+import { EXERCICE_EXEMPLE } from '../js/grille.js?v=2026-11-15e';
 
 const T = 1000; // ms par temps
 const dossier = new URL('./prises/', import.meta.url);

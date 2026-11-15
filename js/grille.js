@@ -1,7 +1,7 @@
 // Format de grille texte, commun aux morceaux et aux exercices.
 // Voir docs/format-grille.md pour la spécification.
 
-import { analyserAccord, transposerSymbole, transposerTonalite } from './accords.js?v=2026-11-15d';
+import { analyserAccord, transposerSymbole, transposerTonalite } from './accords.js?v=2026-11-15e';
 
 /**
  * Lit une grille texte.

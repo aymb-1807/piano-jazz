@@ -119,7 +119,8 @@ export class VuePartition {
       drawTitle: true,
       drawComposer: true,
       drawPartNames: false,
-      followCursor: true,       // fait défiler la page pour garder le curseur visible
+      followCursor: false,      // le suivi d'OSMD fait défiler TOUTE la page (effet de balancier avec la grille) :
+                                // on fait défiler nous-mêmes la seule zone de la partition (suivre())
       // pas de pageBackgroundColor : un fond opaque dans le SVG recouvre le curseur après un nouveau rendu
       // (redimensionnement, barre d'adresse Android) ; le fond est donné par le CSS du conteneur.
     });
@@ -167,12 +168,28 @@ export class VuePartition {
       cur.next();
     }
     this.cible = cible;
+    this.suivre();
+  }
+
+  /** Garde le curseur visible en faisant défiler la seule zone de la partition, jamais la page. */
+  suivre() {
+    const el = this.osmd?.cursor?.cursorElement, zone = this.conteneur;
+    if (!el || zone.scrollHeight <= zone.clientHeight + 4) return;
+    const haut = el.getBoundingClientRect().top - zone.getBoundingClientRect().top + zone.scrollTop;
+    const bas = haut + el.getBoundingClientRect().height;
+    const vueHaut = zone.scrollTop, vueBas = vueHaut + zone.clientHeight;
+    if (haut >= vueHaut + 8 && bas <= vueBas - 8) return; // déjà visible
+    const viser = Math.max(0, haut - zone.clientHeight * 0.2);
+    if (Math.abs(viser - this.dernierDefilement) < 4) return;
+    this.dernierDefilement = viser;
+    zone.scrollTo({ top: viser, behavior: 'smooth' });
   }
 
   revenirAuDebut() {
     if (!this.osmd) return;
     this.osmd.cursor.reset();
     this.cible = -1;
+    this.dernierDefilement = -1;
     this.conteneur.scrollTop = 0;
   }
 }
