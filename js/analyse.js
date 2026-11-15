@@ -2,8 +2,8 @@
 // Règles et seuils : docs/adr/0004-analyse-rythmique-et-harmonique.md
 // Format de la prise : docs/adr/0003-format-prise.md
 
-import { lireGrille } from './grille.js?v=2026-11-15i';
-import { NOMS } from './accords.js?v=2026-11-15i';
+import { lireGrille } from './grille.js?v=2026-11-15j';
+import { NOMS } from './accords.js?v=2026-11-15j';
 
 export const SEUILS = {
   anticipation: 0.15,   // temps : une attaque avant le changement compte pour l'accord suivant
@@ -17,6 +17,7 @@ export const SEUILS = {
   attaqueLibreMs: 150,  // accord roulé/arpégé : notes enchaînées à moins de 150 ms = une seule attaque
   pedaleMaxMs: 700,     // une note tenue par la pédale ne « sonne » pas plus de 0,7 s après le relâchement de la touche
   velociteMin: 8,       // en dessous : touche effleurée, inaudible, ignorée
+  pedaleLongueMs: 8000, // pédale enfoncée plus de 8 s d'affilée : son brouillé ou pédale mal détectée
   sauterAccord: 3,      // pénalité d'alignement pour un accord de la grille sauté
   resterAccord: 0.2,    // pénalité légère pour rester sur le même accord (mélodie, arpège)
 };
@@ -405,6 +406,44 @@ function resumer(segs, S, prise, { rythme = true } = {}) {
       enPlace: decalages.length ? Math.round(100 * decalages.filter(d => Math.abs(d) <= S.enPlaceMs).length / decalages.length) : null, // %
     },
     aTravailler,
+    pedale: statsPedale(prise, segs, S),
+  };
+}
+
+/**
+ * Indicateur de pédale de sustain : appuis, part du temps enfoncée, plus long appui d'affilée.
+ * Durée de référence : de la première note à la fin de la dernière.
+ */
+export function statsPedale(prise, segs, S = SEUILS) {
+  const notes = prise.notes || [];
+  if (!notes.length) return null;
+  const debut = Math.min(...notes.map(n => n.debut)), fin = Math.max(...notes.map(n => n.fin));
+  const duree = Math.max(1, fin - debut);
+  const ev = (prise.pedale || []).slice().sort((a, b) => a.t - b.t);
+  const appuis = [];
+  let depuis = null;
+  for (const e of ev) {
+    if (e.enfoncee && depuis == null) depuis = e.t;
+    else if (!e.enfoncee && depuis != null) { appuis.push([depuis, e.t]); depuis = null; }
+  }
+  if (depuis != null) appuis.push([depuis, Math.max(depuis, fin)]); // jamais relevée avant la fin
+  const dans = appuis.map(([a, b]) => [Math.max(a, debut), Math.min(b, fin)]).filter(([a, b]) => b > a);
+  const total = dans.reduce((x, [a, b]) => x + (b - a), 0);
+  const plusLong = dans.reduce((x, [a, b]) => Math.max(x, b - a), 0);
+  const accords = segs.filter(s => !s.nc && s.joue).length;
+  let alerte = null;
+  if (plusLong >= S.pedaleLongueMs) {
+    alerte = `Pédale enfoncée ${Math.round(plusLong / 1000)} s d'affilée : les accords se mélangent. ` +
+      `Relève-la à chaque changement d'accord ; si tu l'as bien relevée, ton piano transmet mal la pédale (signale-le).`;
+  }
+  return {
+    utilisee: dans.length > 0,
+    appuis: dans.length,
+    partEnfoncee: Math.round(100 * total / duree),   // %
+    plusLongMs: Math.round(plusLong),
+    dureeMoyenneMs: dans.length ? Math.round(total / dans.length) : 0,
+    appuisParAccord: accords ? Math.round(100 * dans.length / accords) / 100 : null,
+    alerte,
   };
 }
 
