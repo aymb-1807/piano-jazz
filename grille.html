@@ -55,6 +55,8 @@
   /* Partition */
   #partition{background:#fbf8f1;border-radius:8px;max-height:62vh;overflow:auto;display:none;margin-top:8px}
   #partition.on{display:block}
+  #partition{position:relative}
+  #partition img[id^="cursorImg"]{z-index:5;pointer-events:none} /* curseur toujours au-dessus de la partition */
   .fichier{display:inline-block;background:var(--card2);border:1px solid #3a3f49;border-radius:10px;padding:10px 14px;font-size:.95rem;cursor:pointer}
   #partiInfo{font-size:.8rem;margin-top:6px;line-height:1.4}
   textarea{width:100%;min-height:320px;background:#101215;color:var(--fg);border:1px solid #3a3f49;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.45}
@@ -63,7 +65,7 @@
 </head>
 <body>
 <header>
-  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15a</span></h1>
+  <h1>🎹 Grille <span class="mut" style="font-size:.7rem;font-weight:400">v2026-11-15b</span></h1>
   <a href="index.html">Test MIDI</a>
 </header>
 
@@ -185,10 +187,10 @@
   addEventListener('unhandledrejection', e => window.__erreurs.push('promesse : ' + (e.reason?.message || e.reason)));
 </script>
 <script type="module">
-import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15a';
-import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15a';
-import { Accompagnement } from './js/accomp.js?v=2026-11-15a';
-import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-15a';
+import { lireGrille, GRILLES, accordA } from './js/grille.js?v=2026-11-15b';
+import { joli, transposerTonalite } from './js/accords.js?v=2026-11-15b';
+import { Accompagnement } from './js/accomp.js?v=2026-11-15b';
+import { VuePartition, enregistrerPartition, lirePartition, supprimerPartition } from './js/partition.js?v=2026-11-15b';
 
 const $ = id => document.getElementById(id);
 const stock = {
